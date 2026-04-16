@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Trash2, Copy, Plus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, Trash2, Copy, Plus, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Afiliado {
@@ -18,6 +19,9 @@ interface Afiliado {
   link_rastreio: string;
   vendas: number;
   saldo_a_pagar: number;
+  cliques_basico: number;
+  cliques_pro: number;
+  cliques_premium: number;
 }
 
 const formatPhone = (value: string) => {
