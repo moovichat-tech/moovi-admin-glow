@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Trash2, Copy, Plus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, Trash2, Copy, Plus, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Afiliado {
@@ -18,6 +19,9 @@ interface Afiliado {
   link_rastreio: string;
   vendas: number;
   saldo_a_pagar: number;
+  cliques_basico: number;
+  cliques_pro: number;
+  cliques_premium: number;
 }
 
 const formatPhone = (value: string) => {
@@ -131,6 +135,7 @@ export default function Afiliados() {
               <TableHead>Nome</TableHead>
               <TableHead>Link de Rastreio</TableHead>
               <TableHead className="text-center">Comissão (%)</TableHead>
+              <TableHead className="text-center">Cliques</TableHead>
               <TableHead className="text-center">Vendas</TableHead>
               <TableHead className="text-right">Saldo a Pagar (R$)</TableHead>
               <TableHead>Chave PIX</TableHead>
@@ -163,6 +168,21 @@ export default function Afiliados() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">{a.comissao_percentual}%</TableCell>
+                  <TableCell className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 cursor-default">
+                            {(a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0)}
+                            <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium: {a.cliques_premium ?? 0}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
                   <TableCell className="text-center">{a.vendas}</TableCell>
                   <TableCell className="text-right">
                     {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

@@ -16,6 +16,9 @@ export type Database = {
     Tables: {
       afiliados: {
         Row: {
+          cliques_basico: number
+          cliques_premium: number
+          cliques_pro: number
           comissao_percentual: number
           created_at: string
           id: string
@@ -29,6 +32,9 @@ export type Database = {
           whatsapp: string
         }
         Insert: {
+          cliques_basico?: number
+          cliques_premium?: number
+          cliques_pro?: number
           comissao_percentual?: number
           created_at?: string
           id?: string
@@ -42,6 +48,9 @@ export type Database = {
           whatsapp: string
         }
         Update: {
+          cliques_basico?: number
+          cliques_premium?: number
+          cliques_pro?: number
           comissao_percentual?: number
           created_at?: string
           id?: string
