@@ -29,6 +29,7 @@ export type Database = {
           saldo_a_pagar: number
           updated_at: string
           user_id: string
+          vencimento_acesso: string | null
           vendas: number
           whatsapp: string
         }
@@ -46,6 +47,7 @@ export type Database = {
           saldo_a_pagar?: number
           updated_at?: string
           user_id: string
+          vencimento_acesso?: string | null
           vendas?: number
           whatsapp: string
         }
@@ -63,8 +65,45 @@ export type Database = {
           saldo_a_pagar?: number
           updated_at?: string
           user_id?: string
+          vencimento_acesso?: string | null
           vendas?: number
           whatsapp?: string
+        }
+        Relationships: []
+      }
+      usuarios: {
+        Row: {
+          created_at: string
+          data_renovacao: string | null
+          gateway_pagamento: string | null
+          id: string
+          plano: string
+          status: string
+          telefone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_renovacao?: string | null
+          gateway_pagamento?: string | null
+          id?: string
+          plano?: string
+          status?: string
+          telefone: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_renovacao?: string | null
+          gateway_pagamento?: string | null
+          id?: string
+          plano?: string
+          status?: string
+          telefone?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
