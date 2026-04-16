@@ -168,6 +168,21 @@ export default function Afiliados() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">{a.comissao_percentual}%</TableCell>
+                  <TableCell className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 cursor-default">
+                            {(a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0)}
+                            <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium: {a.cliques_premium ?? 0}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
                   <TableCell className="text-center">{a.vendas}</TableCell>
                   <TableCell className="text-right">
                     {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
