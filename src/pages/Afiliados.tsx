@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, Trash2, Copy, Plus, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ interface Afiliado {
   cliques_basico: number;
   cliques_pro: number;
   cliques_premium: number;
+  vencimento_acesso: string | null;
 }
 
 const formatPhone = (value: string) => {
@@ -33,6 +35,18 @@ const formatPhone = (value: string) => {
 };
 
 const stripPhone = (value: string) => value.replace(/\D/g, '');
+
+const getAcessoBadge = (vencimento: string | null) => {
+  if (!vencimento) return <span className="text-muted-foreground/60">-</span>;
+  const now = new Date();
+  const exp = new Date(vencimento);
+  const diffMs = exp.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays > 0) {
+    return <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white">{diffDays} dias restantes</Badge>;
+  }
+  return <Badge variant="destructive">Expirado</Badge>;
+};
 
 export default function Afiliados() {
   const { user } = useAuth();
@@ -46,6 +60,7 @@ export default function Afiliados() {
   const [whatsapp, setWhatsapp] = useState('');
   const [comissao, setComissao] = useState('20');
   const [pixChave, setPixChave] = useState('');
+  const [diasAcesso, setDiasAcesso] = useState('30');
 
   const fetchAfiliados = async () => {
     setLoading(true);
@@ -72,6 +87,7 @@ export default function Afiliados() {
     setWhatsapp('');
     setComissao('20');
     setPixChave('');
+    setDiasAcesso('30');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -84,27 +100,64 @@ export default function Afiliados() {
       return;
     }
 
-    const link_rastreio = `https://moovi.chat/?ref=${digits}`;
+    // Ensure 55 country code prefix
+    const whatsappLimpo = digits.startsWith('55') ? digits : `55${digits}`;
+
+    const dias = Number(diasAcesso);
+    if (dias <= 0) {
+      toast.error('Dias de acesso deve ser maior que 0.');
+      return;
+    }
+
+    const vencimento = new Date();
+    vencimento.setDate(vencimento.getDate() + dias);
+    const vencimentoISO = vencimento.toISOString();
+
+    const link_rastreio = `https://moovi.chat/?ref=${whatsappLimpo}`;
 
     setSaving(true);
-    const { error } = await supabase.from('afiliados').insert({
+
+    // Insert afiliado
+    const { error: errAfiliado } = await supabase.from('afiliados').insert({
       user_id: user.id,
       nome: nome.trim(),
       rede_social: redeSocial.trim() || null,
-      whatsapp: digits,
+      whatsapp: whatsappLimpo,
       comissao_percentual: Number(comissao),
       pix_chave: pixChave.trim(),
       link_rastreio,
+      vencimento_acesso: vencimentoISO,
     });
 
-    if (error) {
+    if (errAfiliado) {
       toast.error('Erro ao cadastrar afiliado.');
-    } else {
-      toast.success('Afiliado cadastrado com sucesso!');
-      setModalOpen(false);
-      resetForm();
-      fetchAfiliados();
+      setSaving(false);
+      return;
     }
+
+    // Upsert usuario with VIP access
+    const { error: errUsuario } = await supabase.from('usuarios').upsert(
+      {
+        user_id: user.id,
+        telefone: whatsappLimpo,
+        plano: 'PREMIUM',
+        status: 'Ativo',
+        data_renovacao: vencimentoISO,
+        gateway_pagamento: 'cortesia_afiliado',
+      },
+      { onConflict: 'telefone' }
+    );
+
+    if (errUsuario) {
+      console.error('Erro ao conceder acesso VIP:', errUsuario);
+      toast.warning('Afiliado cadastrado, mas houve erro ao conceder acesso VIP.');
+    } else {
+      toast.success('Afiliado cadastrado e acesso VIP concedido!');
+    }
+
+    setModalOpen(false);
+    resetForm();
+    fetchAfiliados();
     setSaving(false);
   };
 
@@ -145,19 +198,20 @@ export default function Afiliados() {
               <TableHead className="text-center">Conversão (%)</TableHead>
               <TableHead className="text-right">Saldo a Pagar (R$)</TableHead>
               <TableHead>Chave PIX</TableHead>
+              <TableHead className="text-center">Acesso Moovi</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
+                <TableCell colSpan={11} className="text-center py-10">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : afiliados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">
                   Nenhum afiliado cadastrado.
                 </TableCell>
               </TableRow>
@@ -208,6 +262,7 @@ export default function Afiliados() {
                     {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{a.pix_chave}</TableCell>
+                  <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
                   <TableCell>
                     <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
@@ -251,6 +306,10 @@ export default function Afiliados() {
             <div className="space-y-2">
               <Label htmlFor="pix">Chave PIX</Label>
               <Input id="pix" value={pixChave} onChange={(e) => setPixChave(e.target.value)} required placeholder="CPF, e-mail ou chave aleatória" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="diasAcesso">Dias de Acesso ao Moovi (Cortesia)</Label>
+              <Input id="diasAcesso" type="number" min={1} value={diasAcesso} onChange={(e) => setDiasAcesso(e.target.value)} required />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={saving}>
