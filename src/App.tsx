@@ -8,7 +8,7 @@ import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
 import Login from "./pages/Login";
 import Overview from "./pages/Overview";
 import Feedbacks from "./pages/Feedbacks";
-import Influencers from "./pages/Influencers";
+import Afiliados from "./pages/Afiliados";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -31,7 +31,7 @@ const App = () => (
             >
               <Route path="/" element={<Overview />} />
               <Route path="/feedbacks" element={<Feedbacks />} />
-              <Route path="/influencers" element={<Influencers />} />
+              <Route path="/afiliados" element={<Afiliados />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />

@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      afiliados: {
+        Row: {
+          comissao_percentual: number
+          created_at: string
+          id: string
+          link_rastreio: string
+          nome: string
+          pix_chave: string
+          saldo_a_pagar: number
+          updated_at: string
+          user_id: string
+          vendas: number
+          whatsapp: string
+        }
+        Insert: {
+          comissao_percentual?: number
+          created_at?: string
+          id?: string
+          link_rastreio: string
+          nome: string
+          pix_chave: string
+          saldo_a_pagar?: number
+          updated_at?: string
+          user_id: string
+          vendas?: number
+          whatsapp: string
+        }
+        Update: {
+          comissao_percentual?: number
+          created_at?: string
+          id?: string
+          link_rastreio?: string
+          nome?: string
+          pix_chave?: string
+          saldo_a_pagar?: number
+          updated_at?: string
+          user_id?: string
+          vendas?: number
+          whatsapp?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
