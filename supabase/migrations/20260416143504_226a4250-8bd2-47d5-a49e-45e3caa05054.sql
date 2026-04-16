@@ -1,0 +1,1 @@
+ALTER TABLE public.afiliados ADD COLUMN IF NOT EXISTS rede_social text DEFAULT NULL;

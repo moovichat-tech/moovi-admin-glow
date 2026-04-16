@@ -25,6 +25,7 @@ export type Database = {
           link_rastreio: string
           nome: string
           pix_chave: string
+          rede_social: string | null
           saldo_a_pagar: number
           updated_at: string
           user_id: string
@@ -41,6 +42,7 @@ export type Database = {
           link_rastreio: string
           nome: string
           pix_chave: string
+          rede_social?: string | null
           saldo_a_pagar?: number
           updated_at?: string
           user_id: string
@@ -57,6 +59,7 @@ export type Database = {
           link_rastreio?: string
           nome?: string
           pix_chave?: string
+          rede_social?: string | null
           saldo_a_pagar?: number
           updated_at?: string
           user_id?: string
