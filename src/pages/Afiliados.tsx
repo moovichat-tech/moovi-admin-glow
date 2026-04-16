@@ -135,6 +135,7 @@ export default function Afiliados() {
               <TableHead>Nome</TableHead>
               <TableHead>Link de Rastreio</TableHead>
               <TableHead className="text-center">Comissão (%)</TableHead>
+              <TableHead className="text-center">Cliques</TableHead>
               <TableHead className="text-center">Vendas</TableHead>
               <TableHead className="text-right">Saldo a Pagar (R$)</TableHead>
               <TableHead>Chave PIX</TableHead>
