@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 interface Afiliado {
   id: string;
   nome: string;
+  rede_social: string | null;
   whatsapp: string;
   comissao_percentual: number;
   pix_chave: string;
@@ -41,6 +42,7 @@ export default function Afiliados() {
   const [saving, setSaving] = useState(false);
 
   const [nome, setNome] = useState('');
+  const [redeSocial, setRedeSocial] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [comissao, setComissao] = useState('20');
   const [pixChave, setPixChave] = useState('');
@@ -66,6 +68,7 @@ export default function Afiliados() {
 
   const resetForm = () => {
     setNome('');
+    setRedeSocial('');
     setWhatsapp('');
     setComissao('20');
     setPixChave('');
@@ -87,6 +90,7 @@ export default function Afiliados() {
     const { error } = await supabase.from('afiliados').insert({
       user_id: user.id,
       nome: nome.trim(),
+      rede_social: redeSocial.trim() || null,
       whatsapp: digits,
       comissao_percentual: Number(comissao),
       pix_chave: pixChave.trim(),
@@ -133,6 +137,7 @@ export default function Afiliados() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>Rede Social</TableHead>
               <TableHead>Link de Rastreio</TableHead>
               <TableHead className="text-center">Comissão (%)</TableHead>
               <TableHead className="text-center">Cliques</TableHead>
@@ -160,6 +165,9 @@ export default function Afiliados() {
               afiliados.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">{a.nome}</TableCell>
+                  <TableCell className="text-sm">
+                    {a.rede_social ? a.rede_social : <span className="text-muted-foreground/60">-</span>}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground truncate max-w-[200px]">{a.link_rastreio}</span>
@@ -221,6 +229,10 @@ export default function Afiliados() {
             <div className="space-y-2">
               <Label htmlFor="nome">Nome Completo</Label>
               <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="João da Silva" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="redeSocial">Rede Social (Instagram, TikTok, etc.)</Label>
+              <Input id="redeSocial" value={redeSocial} onChange={(e) => setRedeSocial(e.target.value)} placeholder="@usuario ou link do canal" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="whatsapp">WhatsApp</Label>
