@@ -137,6 +137,7 @@ export default function Afiliados() {
               <TableHead className="text-center">Comissão (%)</TableHead>
               <TableHead className="text-center">Cliques</TableHead>
               <TableHead className="text-center">Vendas</TableHead>
+              <TableHead className="text-center">Conversão (%)</TableHead>
               <TableHead className="text-right">Saldo a Pagar (R$)</TableHead>
               <TableHead>Chave PIX</TableHead>
               <TableHead className="w-10" />
@@ -184,6 +185,17 @@ export default function Afiliados() {
                     </TooltipProvider>
                   </TableCell>
                   <TableCell className="text-center">{a.vendas}</TableCell>
+                  <TableCell className="text-center">
+                    {(() => {
+                      const total = (a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0);
+                      const taxa = total > 0 ? (a.vendas / total) * 100 : 0;
+                      return (
+                        <span className={taxa > 0 ? 'text-emerald-500 font-medium' : 'text-muted-foreground'}>
+                          {taxa.toFixed(2)}%
+                        </span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="text-right">
                     {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </TableCell>
