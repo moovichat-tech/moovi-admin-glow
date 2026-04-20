@@ -191,8 +191,23 @@ export default function Afiliados() {
 
   const handleDelete = async () => {
     if (!paraExcluir) return;
-    toast.error('Exclusão via API ainda não disponível.');
-    setParaExcluir(null);
+    setExcluindo(true);
+    try {
+      const res = await fetch(EXCLUIR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: paraExcluir.id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Afiliado excluído com sucesso');
+      setParaExcluir(null);
+      await fetchAfiliados();
+    } catch (err) {
+      console.error('Erro ao excluir afiliado:', err);
+      toast.error('Erro ao excluir afiliado.');
+    } finally {
+      setExcluindo(false);
+    }
   };
 
   const copyLink = (link: string) => {
