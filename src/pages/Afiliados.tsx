@@ -38,6 +38,7 @@ interface Afiliado {
 const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
 const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
 const EXCLUIR_URL = 'https://n8n.fisherai.shop/webhook/excluir-afiliado';
+const EDITAR_URL = 'https://n8n.fisherai.shop/webhook/editar-afiliado';
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -127,15 +128,7 @@ export default function Afiliados() {
     setWhatsapp(phoneFromStored(a.whatsapp));
     setComissao(String(a.comissao_percentual));
     setPixChave(a.pix_chave);
-    if (a.vencimento_acesso) {
-      const diff = Math.max(
-        0,
-        Math.ceil((new Date(a.vencimento_acesso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-      );
-      setDiasAcesso(String(diff || 30));
-    } else {
-      setDiasAcesso('30');
-    }
+    setDiasAcesso('0');
     setModalOpen(true);
   };
 
@@ -149,41 +142,50 @@ export default function Afiliados() {
     }
     const whatsappLimpo = digits.startsWith('55') ? digits : `55${digits}`;
 
-    const dias = Number(diasAcesso);
-    if (dias <= 0) {
-      toast.error('Dias de acesso deve ser maior que 0.');
-      return;
-    }
+    const dias = Number(diasAcesso) || 0;
 
-    if (editando) {
-      toast.error('Edição via API ainda não disponível.');
+    if (!editando && dias <= 0) {
+      toast.error('Dias de acesso deve ser maior que 0.');
       return;
     }
 
     setSaving(true);
     try {
-      const res = await fetch(CADASTRAR_URL, {
+      const url = editando ? EDITAR_URL : CADASTRAR_URL;
+      const body = editando
+        ? {
+            id: editando.id,
+            nome: nome.trim(),
+            rede_social: redeSocial.trim(),
+            whatsapp: whatsappLimpo,
+            comissao: Number(comissao),
+            pix: pixChave.trim(),
+            dias_renovacao: dias,
+          }
+        : {
+            nome: nome.trim(),
+            rede_social: redeSocial.trim(),
+            whatsapp: whatsappLimpo,
+            comissao: Number(comissao),
+            pix: pixChave.trim(),
+            dias_acesso: dias,
+          };
+
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nome: nome.trim(),
-          rede_social: redeSocial.trim(),
-          whatsapp: whatsappLimpo,
-          comissao: Number(comissao),
-          pix: pixChave.trim(),
-          dias_acesso: dias,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      toast.success('Afiliado cadastrado com sucesso!');
+      toast.success(editando ? 'Afiliado atualizado com sucesso' : 'Afiliado cadastrado com sucesso!');
       setModalOpen(false);
       resetForm();
       await fetchAfiliados();
     } catch (err) {
-      console.error('Erro ao cadastrar afiliado:', err);
-      toast.error('Erro ao cadastrar afiliado.');
+      console.error('Erro ao salvar afiliado:', err);
+      toast.error(editando ? 'Erro ao atualizar afiliado.' : 'Erro ao cadastrar afiliado.');
     } finally {
       setSaving(false);
     }
@@ -413,7 +415,7 @@ export default function Afiliados() {
               <Input
                 id="diasAcesso"
                 type="number"
-                min={1}
+                min={editando ? 0 : 1}
                 max={3650}
                 value={diasAcesso}
                 onChange={(e) => setDiasAcesso(e.target.value)}
