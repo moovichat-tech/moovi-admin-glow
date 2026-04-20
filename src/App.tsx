@@ -6,10 +6,17 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
 import Login from "./pages/Login";
-import Overview from "./pages/Overview";
+import Home from "./pages/Home";
+import Afiliados from "./pages/Afiliados";
+import Indicados from "./pages/Indicados";
+import Comissoes from "./pages/Comissoes";
+import CampanhaConfig from "./pages/CampanhaConfig";
+import PortalAfiliado from "./pages/PortalAfiliado";
+import GerarPagamentos from "./pages/GerarPagamentos";
+import HistoricoPagamentos from "./pages/HistoricoPagamentos";
+import Setup from "./pages/Setup";
 import Usuarios from "./pages/Usuarios";
 import Feedbacks from "./pages/Feedbacks";
-import Afiliados from "./pages/Afiliados";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -30,10 +37,17 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route path="/" element={<Overview />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/afiliados" element={<Afiliados />} />
+              <Route path="/indicados" element={<Indicados />} />
+              <Route path="/comissoes" element={<Comissoes />} />
+              <Route path="/campanha" element={<CampanhaConfig />} />
+              <Route path="/portal" element={<PortalAfiliado />} />
+              <Route path="/pagamentos/gerar" element={<GerarPagamentos />} />
+              <Route path="/pagamentos/historico" element={<HistoricoPagamentos />} />
+              <Route path="/setup" element={<Setup />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/feedbacks" element={<Feedbacks />} />
-              <Route path="/afiliados" element={<Afiliados />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
