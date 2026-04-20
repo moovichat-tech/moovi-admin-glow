@@ -74,6 +74,7 @@ export default function Afiliados() {
   const [saving, setSaving] = useState(false);
   const [editando, setEditando] = useState<Afiliado | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Afiliado | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   // form state
   const [nome, setNome] = useState('');
