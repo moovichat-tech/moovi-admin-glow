@@ -71,6 +71,120 @@ export type Database = {
         }
         Relationships: []
       }
+      assinaturas: {
+        Row: {
+          asaas_customer_id: string
+          asaas_subscription_id: string
+          ciclo: string
+          created_at: string
+          data_cancelamento: string | null
+          data_inicio: string | null
+          email: string | null
+          id: string
+          motivo_cancelamento: string | null
+          nome: string | null
+          plano: string | null
+          proximo_vencimento: string | null
+          raw_payload: Json | null
+          status: string
+          telefone: string | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          asaas_customer_id: string
+          asaas_subscription_id: string
+          ciclo?: string
+          created_at?: string
+          data_cancelamento?: string | null
+          data_inicio?: string | null
+          email?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          nome?: string | null
+          plano?: string | null
+          proximo_vencimento?: string | null
+          raw_payload?: Json | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          asaas_customer_id?: string
+          asaas_subscription_id?: string
+          ciclo?: string
+          created_at?: string
+          data_cancelamento?: string | null
+          data_inicio?: string | null
+          email?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          nome?: string | null
+          plano?: string | null
+          proximo_vencimento?: string | null
+          raw_payload?: Json | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: []
+      }
+      pagamentos: {
+        Row: {
+          asaas_customer_id: string | null
+          asaas_payment_id: string
+          asaas_subscription_id: string | null
+          created_at: string
+          data_criacao: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          id: string
+          metodo: string | null
+          raw_payload: Json | null
+          status: string
+          telefone: string | null
+          updated_at: string
+          valor: number
+          valor_liquido: number | null
+        }
+        Insert: {
+          asaas_customer_id?: string | null
+          asaas_payment_id: string
+          asaas_subscription_id?: string | null
+          created_at?: string
+          data_criacao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          id?: string
+          metodo?: string | null
+          raw_payload?: Json | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor?: number
+          valor_liquido?: number | null
+        }
+        Update: {
+          asaas_customer_id?: string | null
+          asaas_payment_id?: string
+          asaas_subscription_id?: string | null
+          created_at?: string
+          data_criacao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          id?: string
+          metodo?: string | null
+          raw_payload?: Json | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor?: number
+          valor_liquido?: number | null
+        }
+        Relationships: []
+      }
       usuarios: {
         Row: {
           created_at: string
@@ -104,6 +218,36 @@ export type Database = {
           telefone?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_events_asaas: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
         }
         Relationships: []
       }
