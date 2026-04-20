@@ -37,6 +37,7 @@ interface Afiliado {
 
 const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
 const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
+const EXCLUIR_URL = 'https://n8n.fisherai.shop/webhook/excluir-afiliado';
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -73,6 +74,7 @@ export default function Afiliados() {
   const [saving, setSaving] = useState(false);
   const [editando, setEditando] = useState<Afiliado | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Afiliado | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   // form state
   const [nome, setNome] = useState('');
@@ -189,8 +191,23 @@ export default function Afiliados() {
 
   const handleDelete = async () => {
     if (!paraExcluir) return;
-    toast.error('Exclusão via API ainda não disponível.');
-    setParaExcluir(null);
+    setExcluindo(true);
+    try {
+      const res = await fetch(EXCLUIR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: paraExcluir.id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Afiliado excluído com sucesso');
+      setParaExcluir(null);
+      await fetchAfiliados();
+    } catch (err) {
+      console.error('Erro ao excluir afiliado:', err);
+      toast.error('Erro ao excluir afiliado.');
+    } finally {
+      setExcluindo(false);
+    }
   };
 
   const copyLink = (link: string) => {
@@ -434,12 +451,22 @@ export default function Afiliados() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={excluindo}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Excluir
+              {excluindo ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Excluindo...
+                </>
+              ) : (
+                'Excluir'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
