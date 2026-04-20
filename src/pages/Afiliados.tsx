@@ -67,7 +67,6 @@ const getAcessoBadge = (vencimento: string | null) => {
 };
 
 export default function Afiliados() {
-  const { user } = useAuth();
   const [afiliados, setAfiliados] = useState<Afiliado[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -85,17 +84,19 @@ export default function Afiliados() {
 
   const fetchAfiliados = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('afiliados')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const res = await fetch(LISTAR_URL, { method: 'GET' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const lista: Afiliado[] = Array.isArray(json) ? json : (json.data ?? json.afiliados ?? []);
+      setAfiliados(lista);
+    } catch (err) {
+      console.error('Erro ao carregar afiliados:', err);
       toast.error('Erro ao carregar afiliados.');
-    } else {
-      setAfiliados(data ?? []);
+      setAfiliados([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -124,7 +125,6 @@ export default function Afiliados() {
     setWhatsapp(phoneFromStored(a.whatsapp));
     setComissao(String(a.comissao_percentual));
     setPixChave(a.pix_chave);
-    // dias restantes (apenas referência; no submit recalcula a partir do valor digitado)
     if (a.vencimento_acesso) {
       const diff = Math.max(
         0,
@@ -139,7 +139,6 @@ export default function Afiliados() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
 
     const digits = stripPhone(whatsapp);
     if (digits.length < 10) {
@@ -154,91 +153,43 @@ export default function Afiliados() {
       return;
     }
 
-    setSaving(true);
-
     if (editando) {
-      // Modo edição: NÃO recalcula link_rastreio nem mexe em usuarios automaticamente.
-      // Atualiza vencimento somando "dias" a partir de hoje.
-      const vencimento = new Date();
-      vencimento.setDate(vencimento.getDate() + dias);
-
-      const { error } = await supabase
-        .from('afiliados')
-        .update({
-          nome: nome.trim(),
-          rede_social: redeSocial.trim() || null,
-          whatsapp: whatsappLimpo,
-          comissao_percentual: Number(comissao),
-          pix_chave: pixChave.trim(),
-          vencimento_acesso: vencimento.toISOString(),
-        })
-        .eq('id', editando.id);
-
-      if (error) {
-        toast.error('Erro ao atualizar afiliado.');
-        setSaving(false);
-        return;
-      }
-      toast.success('Afiliado atualizado.');
-    } else {
-      // Modo criação
-      const vencimento = new Date();
-      vencimento.setDate(vencimento.getDate() + dias);
-      const vencimentoISO = vencimento.toISOString();
-      const link_rastreio = `https://moovi.chat/?ref=${whatsappLimpo}`;
-
-      const { error: errAfiliado } = await supabase.from('afiliados').insert({
-        user_id: user.id,
-        nome: nome.trim(),
-        rede_social: redeSocial.trim() || null,
-        whatsapp: whatsappLimpo,
-        comissao_percentual: Number(comissao),
-        pix_chave: pixChave.trim(),
-        link_rastreio,
-        vencimento_acesso: vencimentoISO,
-      });
-
-      if (errAfiliado) {
-        toast.error('Erro ao cadastrar afiliado.');
-        setSaving(false);
-        return;
-      }
-
-      const { error: errUsuario } = await supabase.from('usuarios').upsert(
-        {
-          user_id: user.id,
-          telefone: whatsappLimpo,
-          plano: 'PREMIUM',
-          status: 'Ativo',
-          data_renovacao: vencimentoISO,
-          gateway_pagamento: 'cortesia_afiliado',
-        },
-        { onConflict: 'telefone' },
-      );
-
-      if (errUsuario) {
-        console.error('Erro ao conceder acesso VIP:', errUsuario);
-        toast.warning('Afiliado cadastrado, mas houve erro ao conceder acesso VIP.');
-      } else {
-        toast.success('Afiliado cadastrado e acesso VIP concedido!');
-      }
+      toast.error('Edição via API ainda não disponível.');
+      return;
     }
 
-    setModalOpen(false);
-    resetForm();
-    fetchAfiliados();
-    setSaving(false);
+    setSaving(true);
+    try {
+      const res = await fetch(CADASTRAR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: nome.trim(),
+          rede_social: redeSocial.trim(),
+          whatsapp: whatsappLimpo,
+          comissao: Number(comissao),
+          pix: pixChave.trim(),
+          dias_acesso: dias,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      toast.success('Afiliado cadastrado com sucesso!');
+      setModalOpen(false);
+      resetForm();
+      await fetchAfiliados();
+    } catch (err) {
+      console.error('Erro ao cadastrar afiliado:', err);
+      toast.error('Erro ao cadastrar afiliado.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
     if (!paraExcluir) return;
-    const { error } = await supabase.from('afiliados').delete().eq('id', paraExcluir.id);
-    if (error) {
-      toast.error('Erro ao excluir afiliado.');
-    } else {
-      toast.success('Afiliado removido.');
-      setAfiliados((prev) => prev.filter((a) => a.id !== paraExcluir.id));
-    }
+    toast.error('Exclusão via API ainda não disponível.');
     setParaExcluir(null);
   };
 
