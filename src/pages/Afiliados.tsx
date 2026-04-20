@@ -128,15 +128,7 @@ export default function Afiliados() {
     setWhatsapp(phoneFromStored(a.whatsapp));
     setComissao(String(a.comissao_percentual));
     setPixChave(a.pix_chave);
-    if (a.vencimento_acesso) {
-      const diff = Math.max(
-        0,
-        Math.ceil((new Date(a.vencimento_acesso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-      );
-      setDiasAcesso(String(diff || 30));
-    } else {
-      setDiasAcesso('30');
-    }
+    setDiasAcesso('0');
     setModalOpen(true);
   };
 
