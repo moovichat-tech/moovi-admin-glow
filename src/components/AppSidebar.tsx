@@ -1,4 +1,18 @@
-import { BarChart3, MessageSquare, Handshake, LogOut, User, Users } from 'lucide-react';
+import {
+  Home,
+  Handshake,
+  UserPlus,
+  DollarSign,
+  Megaphone,
+  Store,
+  FileDown,
+  History,
+  Settings as SettingsIcon,
+  Sparkles,
+  Users,
+  MessageSquare,
+  LogOut,
+} from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -8,6 +22,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -15,12 +30,25 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 
-const navItems = [
-  { title: 'Visão Geral', url: '/', icon: BarChart3 },
-  { title: 'Usuários', url: '/usuarios', icon: Users },
-  { title: 'Feedbacks de Cancelamento', url: '/feedbacks', icon: MessageSquare },
+const programaItems = [
+  { title: 'Home', url: '/', icon: Home },
   { title: 'Afiliados', url: '/afiliados', icon: Handshake },
-  { title: 'Meu Perfil', url: '/settings', icon: User },
+  { title: 'Indicados', url: '/indicados', icon: UserPlus },
+  { title: 'Comissões', url: '/comissoes', icon: DollarSign },
+  { title: 'Configurações da Campanha', url: '/campanha', icon: Megaphone },
+  { title: 'Portal do Afiliado', url: '/portal', icon: Store },
+  { title: 'Gerar Pagamentos', url: '/pagamentos/gerar', icon: FileDown },
+  { title: 'Histórico de Pagamentos', url: '/pagamentos/historico', icon: History },
+];
+
+const operacoesItems = [
+  { title: 'Usuários', url: '/usuarios', icon: Users },
+  { title: 'Feedbacks', url: '/feedbacks', icon: MessageSquare },
+];
+
+const sistemaItems = [
+  { title: 'Setup', url: '/setup', icon: Sparkles },
+  { title: 'Configurações', url: '/settings', icon: SettingsIcon },
 ];
 
 export function AppSidebar() {
@@ -35,6 +63,23 @@ export function AppSidebar() {
     navigate('/login');
   };
 
+  const renderItems = (items: typeof programaItems) =>
+    items.map((item) => (
+      <SidebarMenuItem key={item.url}>
+        <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+          <NavLink
+            to={item.url}
+            end
+            className="hover:bg-sidebar-accent/60"
+            activeClassName="bg-sidebar-accent text-primary font-medium"
+          >
+            <item.icon className="mr-2 h-4 w-4" />
+            {!collapsed && <span>{item.title}</span>}
+          </NavLink>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    ));
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
@@ -44,26 +89,25 @@ export function AppSidebar() {
         )}
       </div>
 
-      <SidebarContent className="pt-4">
+      <SidebarContent className="pt-2">
         <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Programa</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.url}>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className="hover:bg-sidebar-accent/60"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <SidebarMenu>{renderItems(programaItems)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Operações</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(operacoesItems)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Sistema</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(sistemaItems)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
