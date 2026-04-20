@@ -415,7 +415,7 @@ export default function Afiliados() {
               <Input
                 id="diasAcesso"
                 type="number"
-                min={1}
+                min={editando ? 0 : 1}
                 max={3650}
                 value={diasAcesso}
                 onChange={(e) => setDiasAcesso(e.target.value)}
