@@ -21,7 +21,6 @@ import { toast } from 'sonner';
 
 interface Afiliado {
   id: string;
-  user_id: string;
   nome: string;
   rede_social: string | null;
   whatsapp: string;
@@ -35,6 +34,9 @@ interface Afiliado {
   cliques_premium: number;
   vencimento_acesso: string | null;
 }
+
+const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
+const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
