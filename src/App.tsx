@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
 import Login from "./pages/Login";
 import Overview from "./pages/Overview";
+import Usuarios from "./pages/Usuarios";
 import Feedbacks from "./pages/Feedbacks";
 import Afiliados from "./pages/Afiliados";
 import Settings from "./pages/Settings";
@@ -30,6 +31,7 @@ const App = () => (
               }
             >
               <Route path="/" element={<Overview />} />
+              <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/feedbacks" element={<Feedbacks />} />
               <Route path="/afiliados" element={<Afiliados />} />
               <Route path="/settings" element={<Settings />} />

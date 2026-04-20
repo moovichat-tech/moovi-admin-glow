@@ -131,6 +131,45 @@ export type Database = {
         }
         Relationships: []
       }
+      feedbacks_cancelamento: {
+        Row: {
+          comentario: string | null
+          created_at: string
+          data_cancelamento: string
+          id: string
+          motivo: string
+          nome: string | null
+          origem: string
+          plano: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          comentario?: string | null
+          created_at?: string
+          data_cancelamento?: string
+          id?: string
+          motivo: string
+          nome?: string | null
+          origem?: string
+          plano?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          comentario?: string | null
+          created_at?: string
+          data_cancelamento?: string
+          id?: string
+          motivo?: string
+          nome?: string | null
+          origem?: string
+          plano?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pagamentos: {
         Row: {
           asaas_customer_id: string | null

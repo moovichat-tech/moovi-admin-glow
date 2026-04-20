@@ -5,14 +5,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, Copy, Plus, Info } from 'lucide-react';
+import { Loader2, Trash2, Copy, Plus, Info, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Afiliado {
   id: string;
+  user_id: string;
   nome: string;
   rede_social: string | null;
   whatsapp: string;
@@ -36,6 +47,13 @@ const formatPhone = (value: string) => {
 
 const stripPhone = (value: string) => value.replace(/\D/g, '');
 
+const phoneFromStored = (stored: string) => {
+  // Remove possible 55 prefix for display in form
+  const d = stripPhone(stored);
+  const local = d.startsWith('55') && d.length > 11 ? d.slice(2) : d;
+  return formatPhone(local);
+};
+
 const getAcessoBadge = (vencimento: string | null) => {
   if (!vencimento) return <span className="text-muted-foreground/60">-</span>;
   const now = new Date();
@@ -43,7 +61,7 @@ const getAcessoBadge = (vencimento: string | null) => {
   const diffMs = exp.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays > 0) {
-    return <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white">{diffDays} dias restantes</Badge>;
+    return <Badge className="bg-primary text-primary-foreground hover:bg-primary/90">{diffDays} dias restantes</Badge>;
   }
   return <Badge variant="destructive">Expirado</Badge>;
 };
@@ -54,7 +72,10 @@ export default function Afiliados() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editando, setEditando] = useState<Afiliado | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Afiliado | null>(null);
 
+  // form state
   const [nome, setNome] = useState('');
   const [redeSocial, setRedeSocial] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
@@ -88,6 +109,32 @@ export default function Afiliados() {
     setComissao('20');
     setPixChave('');
     setDiasAcesso('30');
+    setEditando(null);
+  };
+
+  const openNovo = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const openEditar = (a: Afiliado) => {
+    setEditando(a);
+    setNome(a.nome);
+    setRedeSocial(a.rede_social || '');
+    setWhatsapp(phoneFromStored(a.whatsapp));
+    setComissao(String(a.comissao_percentual));
+    setPixChave(a.pix_chave);
+    // dias restantes (apenas referência; no submit recalcula a partir do valor digitado)
+    if (a.vencimento_acesso) {
+      const diff = Math.max(
+        0,
+        Math.ceil((new Date(a.vencimento_acesso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      );
+      setDiasAcesso(String(diff || 30));
+    } else {
+      setDiasAcesso('30');
+    }
+    setModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -99,8 +146,6 @@ export default function Afiliados() {
       toast.error('WhatsApp inválido.');
       return;
     }
-
-    // Ensure 55 country code prefix
     const whatsappLimpo = digits.startsWith('55') ? digits : `55${digits}`;
 
     const dias = Number(diasAcesso);
@@ -109,50 +154,74 @@ export default function Afiliados() {
       return;
     }
 
-    const vencimento = new Date();
-    vencimento.setDate(vencimento.getDate() + dias);
-    const vencimentoISO = vencimento.toISOString();
-
-    const link_rastreio = `https://moovi.chat/?ref=${whatsappLimpo}`;
-
     setSaving(true);
 
-    // Insert afiliado
-    const { error: errAfiliado } = await supabase.from('afiliados').insert({
-      user_id: user.id,
-      nome: nome.trim(),
-      rede_social: redeSocial.trim() || null,
-      whatsapp: whatsappLimpo,
-      comissao_percentual: Number(comissao),
-      pix_chave: pixChave.trim(),
-      link_rastreio,
-      vencimento_acesso: vencimentoISO,
-    });
+    if (editando) {
+      // Modo edição: NÃO recalcula link_rastreio nem mexe em usuarios automaticamente.
+      // Atualiza vencimento somando "dias" a partir de hoje.
+      const vencimento = new Date();
+      vencimento.setDate(vencimento.getDate() + dias);
 
-    if (errAfiliado) {
-      toast.error('Erro ao cadastrar afiliado.');
-      setSaving(false);
-      return;
-    }
+      const { error } = await supabase
+        .from('afiliados')
+        .update({
+          nome: nome.trim(),
+          rede_social: redeSocial.trim() || null,
+          whatsapp: whatsappLimpo,
+          comissao_percentual: Number(comissao),
+          pix_chave: pixChave.trim(),
+          vencimento_acesso: vencimento.toISOString(),
+        })
+        .eq('id', editando.id);
 
-    // Upsert usuario with VIP access
-    const { error: errUsuario } = await supabase.from('usuarios').upsert(
-      {
-        user_id: user.id,
-        telefone: whatsappLimpo,
-        plano: 'PREMIUM',
-        status: 'Ativo',
-        data_renovacao: vencimentoISO,
-        gateway_pagamento: 'cortesia_afiliado',
-      },
-      { onConflict: 'telefone' }
-    );
-
-    if (errUsuario) {
-      console.error('Erro ao conceder acesso VIP:', errUsuario);
-      toast.warning('Afiliado cadastrado, mas houve erro ao conceder acesso VIP.');
+      if (error) {
+        toast.error('Erro ao atualizar afiliado.');
+        setSaving(false);
+        return;
+      }
+      toast.success('Afiliado atualizado.');
     } else {
-      toast.success('Afiliado cadastrado e acesso VIP concedido!');
+      // Modo criação
+      const vencimento = new Date();
+      vencimento.setDate(vencimento.getDate() + dias);
+      const vencimentoISO = vencimento.toISOString();
+      const link_rastreio = `https://moovi.chat/?ref=${whatsappLimpo}`;
+
+      const { error: errAfiliado } = await supabase.from('afiliados').insert({
+        user_id: user.id,
+        nome: nome.trim(),
+        rede_social: redeSocial.trim() || null,
+        whatsapp: whatsappLimpo,
+        comissao_percentual: Number(comissao),
+        pix_chave: pixChave.trim(),
+        link_rastreio,
+        vencimento_acesso: vencimentoISO,
+      });
+
+      if (errAfiliado) {
+        toast.error('Erro ao cadastrar afiliado.');
+        setSaving(false);
+        return;
+      }
+
+      const { error: errUsuario } = await supabase.from('usuarios').upsert(
+        {
+          user_id: user.id,
+          telefone: whatsappLimpo,
+          plano: 'PREMIUM',
+          status: 'Ativo',
+          data_renovacao: vencimentoISO,
+          gateway_pagamento: 'cortesia_afiliado',
+        },
+        { onConflict: 'telefone' },
+      );
+
+      if (errUsuario) {
+        console.error('Erro ao conceder acesso VIP:', errUsuario);
+        toast.warning('Afiliado cadastrado, mas houve erro ao conceder acesso VIP.');
+      } else {
+        toast.success('Afiliado cadastrado e acesso VIP concedido!');
+      }
     }
 
     setModalOpen(false);
@@ -161,14 +230,16 @@ export default function Afiliados() {
     setSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('afiliados').delete().eq('id', id);
+  const handleDelete = async () => {
+    if (!paraExcluir) return;
+    const { error } = await supabase.from('afiliados').delete().eq('id', paraExcluir.id);
     if (error) {
       toast.error('Erro ao excluir afiliado.');
     } else {
       toast.success('Afiliado removido.');
-      setAfiliados((prev) => prev.filter((a) => a.id !== id));
+      setAfiliados((prev) => prev.filter((a) => a.id !== paraExcluir.id));
     }
+    setParaExcluir(null);
   };
 
   const copyLink = (link: string) => {
@@ -179,27 +250,32 @@ export default function Afiliados() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Gestão de Afiliados</h1>
-        <Button onClick={() => setModalOpen(true)}>
+        <div>
+          <h1 className="text-3xl font-semibold text-foreground">Gestão de Afiliados</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {afiliados.length.toLocaleString('pt-BR')} afiliado(s) cadastrado(s)
+          </p>
+        </div>
+        <Button onClick={openNovo}>
           <Plus className="mr-2 h-4 w-4" /> Novo Afiliado
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <div className="rounded-lg border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Rede Social</TableHead>
               <TableHead>Link de Rastreio</TableHead>
-              <TableHead className="text-center">Comissão (%)</TableHead>
+              <TableHead className="text-center">Comissão</TableHead>
               <TableHead className="text-center">Cliques</TableHead>
               <TableHead className="text-center">Vendas</TableHead>
-              <TableHead className="text-center">Conversão (%)</TableHead>
-              <TableHead className="text-right">Saldo a Pagar (R$)</TableHead>
+              <TableHead className="text-center">Conversão</TableHead>
+              <TableHead className="text-right">Saldo a Pagar</TableHead>
               <TableHead>Chave PIX</TableHead>
               <TableHead className="text-center">Acesso Moovi</TableHead>
-              <TableHead className="w-10" />
+              <TableHead className="w-20 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -241,7 +317,10 @@ export default function Afiliados() {
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium: {a.cliques_premium ?? 0}</p>
+                          <p>
+                            Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium:{' '}
+                            {a.cliques_premium ?? 0}
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -252,7 +331,7 @@ export default function Afiliados() {
                       const total = (a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0);
                       const taxa = total > 0 ? (a.vendas / total) * 100 : 0;
                       return (
-                        <span className={taxa > 0 ? 'text-emerald-500 font-medium' : 'text-muted-foreground'}>
+                        <span className={taxa > 0 ? 'text-primary font-medium' : 'text-muted-foreground'}>
                           {taxa.toFixed(2)}%
                         </span>
                       );
@@ -264,9 +343,22 @@ export default function Afiliados() {
                   <TableCell className="text-xs text-muted-foreground">{a.pix_chave}</TableCell>
                   <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
                   <TableCell>
-                    <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => openEditar(a)}
+                        className="p-1.5 text-muted-foreground hover:text-foreground"
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setParaExcluir(a)}
+                        className="p-1.5 text-muted-foreground hover:text-destructive"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -275,19 +367,43 @@ export default function Afiliados() {
         </Table>
       </div>
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          setModalOpen(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Novo Afiliado</DialogTitle>
+            <DialogTitle>{editando ? 'Editar Afiliado' : 'Novo Afiliado'}</DialogTitle>
+            {editando && (
+              <DialogDescription>
+                A edição não recria o link de rastreio nem reaplica acesso VIP automaticamente.
+              </DialogDescription>
+            )}
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nome">Nome Completo</Label>
-              <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="João da Silva" />
+              <Input
+                id="nome"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+                maxLength={120}
+                placeholder="João da Silva"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="redeSocial">Rede Social (Instagram, TikTok, etc.)</Label>
-              <Input id="redeSocial" value={redeSocial} onChange={(e) => setRedeSocial(e.target.value)} placeholder="@usuario ou link do canal" />
+              <Label htmlFor="redeSocial">Rede Social</Label>
+              <Input
+                id="redeSocial"
+                value={redeSocial}
+                onChange={(e) => setRedeSocial(e.target.value)}
+                maxLength={200}
+                placeholder="@usuario ou link do canal"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="whatsapp">WhatsApp</Label>
@@ -301,24 +417,82 @@ export default function Afiliados() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="comissao">Comissão (%)</Label>
-              <Input id="comissao" type="number" min={0} max={100} value={comissao} onChange={(e) => setComissao(e.target.value)} required />
+              <Input
+                id="comissao"
+                type="number"
+                min={0}
+                max={100}
+                value={comissao}
+                onChange={(e) => setComissao(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pix">Chave PIX</Label>
-              <Input id="pix" value={pixChave} onChange={(e) => setPixChave(e.target.value)} required placeholder="CPF, e-mail ou chave aleatória" />
+              <Input
+                id="pix"
+                value={pixChave}
+                onChange={(e) => setPixChave(e.target.value)}
+                required
+                maxLength={120}
+                placeholder="CPF, e-mail ou chave aleatória"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="diasAcesso">Dias de Acesso ao Moovi (Cortesia)</Label>
-              <Input id="diasAcesso" type="number" min={1} value={diasAcesso} onChange={(e) => setDiasAcesso(e.target.value)} required />
+              <Label htmlFor="diasAcesso">
+                {editando ? 'Renovar acesso por (dias)' : 'Dias de Acesso ao Moovi (Cortesia)'}
+              </Label>
+              <Input
+                id="diasAcesso"
+                type="number"
+                min={1}
+                max={3650}
+                value={diasAcesso}
+                onChange={(e) => setDiasAcesso(e.target.value)}
+                required
+              />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={saving}>
-                {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</> : 'Salvar Afiliado'}
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
+                  </>
+                ) : editando ? (
+                  'Salvar alterações'
+                ) : (
+                  'Salvar Afiliado'
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!paraExcluir} onOpenChange={(open) => !open && setParaExcluir(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir afiliado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {paraExcluir && (
+                <>
+                  Remove <span className="font-medium text-foreground">{paraExcluir.nome}</span> permanentemente.
+                  Cliques e vendas históricas associadas a este registro serão perdidas.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
