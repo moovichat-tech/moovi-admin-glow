@@ -1,4 +1,4 @@
-import { BarChart3, MessageSquare, Handshake, LogOut, User } from 'lucide-react';
+import { BarChart3, MessageSquare, Handshake, LogOut, User, Users } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -17,6 +17,7 @@ import {
 
 const navItems = [
   { title: 'Visão Geral', url: '/', icon: BarChart3 },
+  { title: 'Usuários', url: '/usuarios', icon: Users },
   { title: 'Feedbacks de Cancelamento', url: '/feedbacks', icon: MessageSquare },
   { title: 'Afiliados', url: '/afiliados', icon: Handshake },
   { title: 'Meu Perfil', url: '/settings', icon: User },
