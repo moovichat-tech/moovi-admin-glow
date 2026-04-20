@@ -37,6 +37,7 @@ interface Afiliado {
 
 const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
 const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
+const EXCLUIR_URL = 'https://n8n.fisherai.shop/webhook/excluir-afiliado';
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
