@@ -55,7 +55,7 @@ const PAGE_SIZE = 20;
 
 const statusBadge = (status: string) => {
   const s = (status || '').toLowerCase();
-  if (s === 'ativo') return <Badge className="bg-emerald-600 hover:bg-emerald-700">Ativo</Badge>;
+  if (s === 'ativo') return <Badge className="bg-primary text-primary-foreground hover:bg-primary/90">Ativo</Badge>;
   if (s === 'inativo') return <Badge variant="secondary">Inativo</Badge>;
   if (s.includes('cancel')) return <Badge variant="destructive">Cancelado</Badge>;
   return <Badge variant="outline">{status || '—'}</Badge>;
@@ -63,8 +63,8 @@ const statusBadge = (status: string) => {
 
 const planoBadge = (plano: string) => {
   const p = (plano || '').toUpperCase();
-  if (p === 'PREMIUM') return <Badge className="bg-primary/20 text-primary border-primary/30">Premium</Badge>;
-  if (p === 'PRO') return <Badge className="bg-sky-500/20 text-sky-400 border-sky-500/30">Pro</Badge>;
+  if (p === 'PREMIUM') return <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30">Premium</Badge>;
+  if (p === 'PRO') return <Badge className="bg-accent text-accent-foreground hover:bg-accent/80">Pro</Badge>;
   if (p === 'BASICO' || p === 'BÁSICO') return <Badge variant="outline">Básico</Badge>;
   if (p === 'FREE') return <Badge variant="outline" className="text-muted-foreground">Free</Badge>;
   return <Badge variant="outline">{plano || '—'}</Badge>;
