@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -10,11 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Copy, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,255 +23,252 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import { toast } from 'sonner';
 
-interface Afiliado {
-  id: string;
-  vendas: number;
-  saldo_a_pagar: number;
-  cliques_basico: number;
-  cliques_pro: number;
-  cliques_premium: number;
-}
+// TODO: ligar à API n8n quando endpoints estiverem prontos
+const MOCK_KPIS = {
+  usuarios: 1284,
+  receita: 87450.0,
+  comissao: 17490.0,
+  cliques: 9421,
+  assinantes: 612,
+};
 
-interface Pagamento {
-  id: string;
-  valor: number;
-  data_pagamento: string | null;
-  status: string;
-}
-
-interface Usuario {
-  id: string;
-  created_at: string;
-  gateway_pagamento: string | null;
-}
-
-const PERIODOS = [
-  { value: '12', label: 'Últimos 12 meses' },
-  { value: '6', label: 'Últimos 6 meses' },
-  { value: '3', label: 'Últimos 3 meses' },
+// TODO: ligar à API n8n
+const MOCK_RANKING_COMISSAO = [
+  { nome: 'Lucas Almeida', valor: 4280 },
+  { nome: 'Mariana Costa', valor: 3890 },
+  { nome: 'Pedro Henrique', valor: 3115 },
+  { nome: 'Juliana Ramos', valor: 2640 },
+  { nome: 'Rafael Souza', valor: 2210 },
+  { nome: 'Camila Ferreira', valor: 1985 },
+  { nome: 'Bruno Lima', valor: 1720 },
+  { nome: 'Patrícia Oliveira', valor: 1490 },
+  { nome: 'Gustavo Martins', valor: 1280 },
+  { nome: 'Aline Pereira', valor: 1110 },
 ];
+
+const MOCK_RANKING_VENDAS = [
+  { nome: 'Mariana Costa', valor: 96 },
+  { nome: 'Lucas Almeida', valor: 88 },
+  { nome: 'Camila Ferreira', valor: 71 },
+  { nome: 'Pedro Henrique', valor: 64 },
+  { nome: 'Bruno Lima', valor: 58 },
+  { nome: 'Juliana Ramos', valor: 51 },
+  { nome: 'Rafael Souza', valor: 47 },
+  { nome: 'Gustavo Martins', valor: 39 },
+  { nome: 'Patrícia Oliveira', valor: 33 },
+  { nome: 'Aline Pereira', valor: 28 },
+];
+
+// Série mensal (12 meses) — TODO: trocar por dados reais
+const baseSeries = (seed: number) => {
+  const now = new Date();
+  return Array.from({ length: 12 }).map((_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+    const valor =
+      Math.round(
+        (Math.sin((i + seed) * 0.7) * 0.4 + 0.6) * (seed === 0 ? 14000 : 3200) +
+          (seed === 0 ? 4000 : 800),
+      );
+    return { date: d, mes: format(d, 'MMM/yy', { locale: ptBR }), valor };
+  });
+};
+const MOCK_SERIES_RECEITA = baseSeries(0);
+const MOCK_SERIES_COMISSAO = baseSeries(3);
 
 const formatBRL = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const monthLabel = (d: Date) =>
-  d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+type PeriodPreset = 'mes' | '3m' | '6m' | '12m' | 'ano' | 'custom';
+
+const PRESETS: { value: PeriodPreset; label: string }[] = [
+  { value: 'mes', label: 'Este mês' },
+  { value: '3m', label: 'Últimos 3 meses' },
+  { value: '6m', label: 'Últimos 6 meses' },
+  { value: '12m', label: 'Últimos 12 meses' },
+  { value: 'ano', label: 'Este ano' },
+  { value: 'custom', label: 'Personalizado' },
+];
+
+const getRange = (preset: PeriodPreset, from?: Date, to?: Date) => {
+  const now = new Date();
+  if (preset === 'custom' && from && to) return { from, to };
+  if (preset === 'mes')
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
+  if (preset === 'ano') return { from: new Date(now.getFullYear(), 0, 1), to: now };
+  const months = preset === '3m' ? 3 : preset === '6m' ? 6 : 12;
+  return { from: new Date(now.getFullYear(), now.getMonth() - (months - 1), 1), to: now };
+};
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [afiliados, setAfiliados] = useState<Afiliado[]>([]);
-  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
-  const [indicados, setIndicados] = useState<Usuario[]>([]);
-  const [periodoReceita, setPeriodoReceita] = useState('12');
-  const [periodoComissao, setPeriodoComissao] = useState('12');
-  const [copied, setCopied] = useState(false);
+  const [preset, setPreset] = useState<PeriodPreset>('12m');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
-  const portalLink = 'https://moovi.chat/?ref=parceiro';
-
-  useEffect(() => {
-    const load = async () => {
-      const [a, p, u] = await Promise.all([
-        supabase
-          .from('afiliados')
-          .select('id, vendas, saldo_a_pagar, cliques_basico, cliques_pro, cliques_premium'),
-        supabase.from('pagamentos').select('id, valor, data_pagamento, status'),
-        supabase
-          .from('usuarios')
-          .select('id, created_at, gateway_pagamento')
-          .eq('gateway_pagamento', 'cortesia_afiliado'),
-      ]);
-      if (a.data) setAfiliados(a.data as Afiliado[]);
-      if (p.data) setPagamentos(p.data as Pagamento[]);
-      if (u.data) setIndicados(u.data as Usuario[]);
-      setLoading(false);
-    };
-    load();
-  }, []);
-
-  // KPIs
-  const totalReceita = useMemo(
-    () =>
-      pagamentos
-        .filter((p) => p.status === 'CONFIRMED' || p.status === 'RECEIVED')
-        .reduce((acc, p) => acc + Number(p.valor || 0), 0),
-    [pagamentos],
+  const range = useMemo(
+    () => getRange(preset, customFrom, customTo),
+    [preset, customFrom, customTo],
   );
 
-  const totalCliques = useMemo(
-    () =>
-      afiliados.reduce(
-        (acc, a) =>
-          acc + (a.cliques_basico || 0) + (a.cliques_pro || 0) + (a.cliques_premium || 0),
-        0,
-      ),
-    [afiliados],
-  );
+  const filterSeries = (series: typeof MOCK_SERIES_RECEITA) =>
+    series.filter((s) => s.date >= range.from && s.date <= range.to);
 
-  const totalIndicados = indicados.length;
+  const receitaSeries = filterSeries(MOCK_SERIES_RECEITA);
+  const comissaoSeries = filterSeries(MOCK_SERIES_COMISSAO);
 
-  const totalComissoes = useMemo(
-    () => afiliados.reduce((acc, a) => acc + Number(a.saldo_a_pagar || 0), 0),
-    [afiliados],
-  );
-
-  // Série mensal — Receita
-  const buildMonthlySeries = (months: number, valueFor: (date: Date) => number) => {
-    const now = new Date();
-    const series: { mes: string; valor: number }[] = [];
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      series.push({ mes: monthLabel(d), valor: valueFor(d) });
-    }
-    return series;
-  };
-
-  const receitaSeries = useMemo(() => {
-    const months = Number(periodoReceita);
-    return buildMonthlySeries(months, (d) => {
-      const ano = d.getFullYear();
-      const mes = d.getMonth();
-      return pagamentos
-        .filter((p) => {
-          if (!p.data_pagamento) return false;
-          if (p.status !== 'CONFIRMED' && p.status !== 'RECEIVED') return false;
-          const dp = new Date(p.data_pagamento);
-          return dp.getFullYear() === ano && dp.getMonth() === mes;
-        })
-        .reduce((acc, p) => acc + Number(p.valor || 0), 0);
-    });
-  }, [pagamentos, periodoReceita]);
-
-  // Série mensal — Comissões (proxy: distribui saldo_a_pagar atual no mês corrente)
-  const comissoesSeries = useMemo(() => {
-    const months = Number(periodoComissao);
-    const now = new Date();
-    return buildMonthlySeries(months, (d) => {
-      const isCurrent =
-        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      return isCurrent ? totalComissoes : 0;
-    });
-  }, [totalComissoes, periodoComissao]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(portalLink);
-    setCopied(true);
-    toast.success('Link copiado!');
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const periodoLabel =
+    preset === 'custom' && customFrom && customTo
+      ? `${format(customFrom, 'dd/MM/yy')} → ${format(customTo, 'dd/MM/yy')}`
+      : PRESETS.find((p) => p.value === preset)?.label ?? '';
 
   return (
     <div className="space-y-8 max-w-[1400px]">
-      <div>
-        <h1 className="text-3xl font-semibold text-foreground tracking-tight">
-          Visão Geral do Programa de Afiliados
-        </h1>
-        <p className="text-base text-muted-foreground mt-2">
-          Aqui está o que está acontecendo com seu programa de afiliados
-        </p>
+      {/* Header com filtro */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-foreground tracking-tight">
+            Visão Geral do Programa
+          </h1>
+          <p className="text-base text-muted-foreground mt-2">
+            Métricas consolidadas — {periodoLabel.toLowerCase()}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
+            <SelectTrigger className="w-52 bg-secondary/40 border-border/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRESETS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {preset === 'custom' && (
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'justify-start text-left font-normal',
+                    !customFrom && 'text-muted-foreground',
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {customFrom && customTo
+                    ? `${format(customFrom, 'dd/MM/yy')} - ${format(customTo, 'dd/MM/yy')}`
+                    : 'Escolher datas'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <div className="flex flex-col sm:flex-row">
+                  <div className="border-r border-border">
+                    <div className="px-3 pt-3 text-xs uppercase text-muted-foreground">
+                      Início
+                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={customFrom}
+                      onSelect={setCustomFrom}
+                      className={cn('p-3 pointer-events-auto')}
+                    />
+                  </div>
+                  <div>
+                    <div className="px-3 pt-3 text-xs uppercase text-muted-foreground">
+                      Fim
+                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={customTo}
+                      onSelect={setCustomTo}
+                      className={cn('p-3 pointer-events-auto')}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 p-3 border-t border-border">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCustomFrom(undefined);
+                      setCustomTo(undefined);
+                    }}
+                  >
+                    Limpar
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!customFrom || !customTo}
+                    onClick={() => setPopoverOpen(false)}
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
 
-      {/* Portal de Afiliados */}
-      <Card className="bg-card/40 border-border/60">
-        <CardContent className="p-8 space-y-5">
-          <div>
-            <h2 className="text-2xl font-semibold text-foreground">Seu Portal de Afiliados</h2>
-            <p className="text-sm text-muted-foreground mt-1.5">
-              Convide afiliados para se cadastrarem no seu programa usando o link abaixo
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
-            <Input
-              readOnly
-              value={portalLink}
-              className="bg-secondary/40 border-border/60 font-mono text-sm h-11"
-            />
-            <Button onClick={handleCopy} variant="secondary" className="h-11 px-6 shrink-0">
-              {copied ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" /> Copiado
-                </>
-              ) : (
-                <>
-                  <Copy className="mr-2 h-4 w-4" /> Copiar Link
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 3 KPIs grandes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <BigKpi
-          title="Receita Total"
-          value={loading ? '—' : formatBRL(totalReceita)}
-          suffix={!loading && totalReceita === 0 ? 'BRL' : undefined}
-          empty={!loading && totalReceita === 0}
-          emptyHint="Aguardando pagamentos"
-        />
-        <BigKpi
-          title="Cliques"
-          value={loading ? '—' : totalCliques.toLocaleString('pt-BR')}
-        />
-        <BigKpi
-          title="Usuários Indicados"
-          value={loading ? '—' : totalIndicados.toLocaleString('pt-BR')}
-        />
+      {/* 5 KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Kpi title="Usuários" value={MOCK_KPIS.usuarios.toLocaleString('pt-BR')} />
+        <Kpi title="Receita" value={formatBRL(MOCK_KPIS.receita)} />
+        <Kpi title="Comissão de Afiliados" value={formatBRL(MOCK_KPIS.comissao)} />
+        <Kpi title="Cliques" value={MOCK_KPIS.cliques.toLocaleString('pt-BR')} />
+        <Kpi title="Assinantes" value={MOCK_KPIS.assinantes.toLocaleString('pt-BR')} />
       </div>
 
-      {/* 2 gráficos lado a lado */}
+      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard
           title="Receita de Afiliados"
-          value={formatBRL(totalReceita)}
-          period={periodoReceita}
-          onPeriodChange={setPeriodoReceita}
+          value={formatBRL(receitaSeries.reduce((a, b) => a + b.valor, 0))}
           data={receitaSeries}
-          color="hsl(var(--primary))"
           format={formatBRL}
         />
         <ChartCard
           title="Comissões de Afiliados"
-          value={formatBRL(totalComissoes)}
-          period={periodoComissao}
-          onPeriodChange={setPeriodoComissao}
-          data={comissoesSeries}
-          color="hsl(var(--primary))"
+          value={formatBRL(comissaoSeries.reduce((a, b) => a + b.valor, 0))}
+          data={comissaoSeries}
           format={formatBRL}
+        />
+      </div>
+
+      {/* Rankings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <RankingCard
+          title="Top 10 Afiliados por Comissão"
+          subtitle="Maior comissão acumulada no período"
+          rows={MOCK_RANKING_COMISSAO}
+          formatValue={formatBRL}
+        />
+        <RankingCard
+          title="Top 10 Afiliados por Vendas"
+          subtitle="Maior número de vendas convertidas"
+          rows={MOCK_RANKING_VENDAS}
+          formatValue={(v) => v.toLocaleString('pt-BR')}
         />
       </div>
     </div>
   );
 }
 
-function BigKpi({
-  title,
-  value,
-  suffix,
-  empty,
-  emptyHint,
-}: {
-  title: string;
-  value: string;
-  suffix?: string;
-  empty?: boolean;
-  emptyHint?: string;
-}) {
+function Kpi({ title, value }: { title: string; value: string }) {
   return (
     <Card className="bg-card/40 border-border/60">
-      <CardContent className="p-7">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-4xl font-semibold tracking-tight text-foreground tabular-nums">
-            {value}
-          </span>
-          {suffix && <span className="text-base text-muted-foreground">{suffix}</span>}
-        </div>
-        {empty && emptyHint && (
-          <p className="text-xs text-muted-foreground/70 mt-2">{emptyHint}</p>
-        )}
+      <CardContent className="p-5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          {title}
+        </p>
+        <p className="text-2xl font-semibold tracking-tight text-foreground mt-3 tabular-nums">
+          {value}
+        </p>
       </CardContent>
     </Card>
   );
@@ -279,51 +277,32 @@ function BigKpi({
 function ChartCard({
   title,
   value,
-  period,
-  onPeriodChange,
   data,
-  color,
   format,
 }: {
   title: string;
   value: string;
-  period: string;
-  onPeriodChange: (v: string) => void;
   data: { mes: string; valor: number }[];
-  color: string;
   format: (n: number) => string;
 }) {
-  const isEmpty = data.every((d) => d.valor === 0);
+  const isEmpty = data.length === 0 || data.every((d) => d.valor === 0);
+  const id = `grad-${title.replace(/\s/g, '')}`;
   return (
     <Card className="bg-card/40 border-border/60">
       <CardContent className="p-7 space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-semibold tracking-tight text-foreground mt-2 tabular-nums">
-              {value}
-            </p>
-          </div>
-          <Select value={period} onValueChange={onPeriodChange}>
-            <SelectTrigger className="w-44 bg-secondary/40 border-border/60">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODOS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-3xl font-semibold tracking-tight text-foreground mt-2 tabular-nums">
+            {value}
+          </p>
         </div>
-        <div className="h-[220px]">
+        <div className="h-[220px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
               <defs>
-                <linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -348,20 +327,73 @@ function ChartCard({
               <Area
                 type="monotone"
                 dataKey="valor"
-                stroke={color}
+                stroke="hsl(var(--primary))"
                 strokeWidth={2}
-                fill={`url(#grad-${title})`}
+                fill={`url(#${id})`}
                 dot={false}
                 activeDot={{ r: 4 }}
               />
             </AreaChart>
           </ResponsiveContainer>
           {isEmpty && (
-            <p className="text-xs text-muted-foreground/70 text-center -mt-32">
+            <p className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground/70">
               Sem dados nesse período
             </p>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function medalClass(pos: number) {
+  if (pos === 1) return 'bg-primary/20 text-primary border-primary/30';
+  if (pos === 2) return 'bg-secondary text-foreground border-border';
+  if (pos === 3) return 'bg-accent/40 text-foreground border-border';
+  return 'bg-muted text-muted-foreground border-border';
+}
+
+function RankingCard({
+  title,
+  subtitle,
+  rows,
+  formatValue,
+}: {
+  title: string;
+  subtitle: string;
+  rows: { nome: string; valor: number }[];
+  formatValue: (v: number) => string;
+}) {
+  return (
+    <Card className="bg-card/40 border-border/60">
+      <CardContent className="p-7">
+        <div className="mb-5">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">{subtitle}</p>
+        </div>
+        <ul className="space-y-2">
+          {rows.map((r, i) => (
+            <li
+              key={r.nome}
+              className="flex items-center justify-between gap-3 p-2.5 rounded-md hover:bg-secondary/30 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center w-7 h-7 rounded-full border text-xs font-semibold tabular-nums',
+                    medalClass(i + 1),
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <span className="text-sm text-foreground truncate">{r.nome}</span>
+              </div>
+              <span className="text-sm font-medium tabular-nums text-foreground shrink-0">
+                {formatValue(r.valor)}
+              </span>
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );

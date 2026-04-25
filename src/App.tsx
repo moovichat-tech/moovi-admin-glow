@@ -8,7 +8,6 @@ import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Afiliados from "./pages/Afiliados";
-import Indicados from "./pages/Indicados";
 import Comissoes from "./pages/Comissoes";
 import CampanhaConfig from "./pages/CampanhaConfig";
 import PortalAfiliado from "./pages/PortalAfiliado";
@@ -39,7 +38,6 @@ const App = () => (
             >
               <Route path="/" element={<Home />} />
               <Route path="/afiliados" element={<Afiliados />} />
-              <Route path="/indicados" element={<Indicados />} />
               <Route path="/comissoes" element={<Comissoes />} />
               <Route path="/campanha" element={<CampanhaConfig />} />
               <Route path="/portal" element={<PortalAfiliado />} />

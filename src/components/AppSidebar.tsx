@@ -1,7 +1,6 @@
 import {
   Home,
   Handshake,
-  UserPlus,
   DollarSign,
   Megaphone,
   Store,
@@ -33,7 +32,6 @@ import {
 const programaItems = [
   { title: 'Home', url: '/', icon: Home },
   { title: 'Afiliados', url: '/afiliados', icon: Handshake },
-  { title: 'Indicados', url: '/indicados', icon: UserPlus },
   { title: 'Comissões', url: '/comissoes', icon: DollarSign },
   { title: 'Configurações da Campanha', url: '/campanha', icon: Megaphone },
   { title: 'Portal do Afiliado', url: '/portal', icon: Store },

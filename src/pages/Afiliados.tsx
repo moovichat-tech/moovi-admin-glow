@@ -29,6 +29,7 @@ interface Afiliado {
   link_rastreio: string;
   vendas: number;
   saldo_a_pagar: number;
+  comissao_total?: number;
   cliques_basico: number;
   cliques_pro: number;
   cliques_premium: number;
@@ -243,6 +244,7 @@ export default function Afiliados() {
               <TableHead className="text-center">Vendas</TableHead>
               <TableHead className="text-center">Conversão</TableHead>
               <TableHead className="text-right">Saldo a Pagar</TableHead>
+              <TableHead className="text-right">Comissão Total</TableHead>
               <TableHead>Chave PIX</TableHead>
               <TableHead className="text-center">Acesso Moovi</TableHead>
               <TableHead className="w-20 text-right">Ações</TableHead>
@@ -251,13 +253,13 @@ export default function Afiliados() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-10">
+                <TableCell colSpan={12} className="text-center py-10">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : afiliados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
                   Nenhum afiliado cadastrado.
                 </TableCell>
               </TableRow>
@@ -309,6 +311,9 @@ export default function Afiliados() {
                   </TableCell>
                   <TableCell className="text-right">
                     {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {Number(a.comissao_total ?? a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{a.pix_chave}</TableCell>
                   <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
