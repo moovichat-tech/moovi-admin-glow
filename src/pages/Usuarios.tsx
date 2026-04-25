@@ -51,6 +51,45 @@ interface Usuario {
   updated_at: string;
 }
 
+interface Pagamento {
+  id: string;
+  valor: number;
+  status: string;
+  metodo: string | null;
+  data_pagamento: string | null;
+  data_vencimento: string | null;
+}
+
+interface Assinatura {
+  id: string;
+  plano: string | null;
+  ciclo: string;
+  valor: number;
+  status: string;
+  data_inicio: string | null;
+  proximo_vencimento: string | null;
+}
+
+interface Feedback {
+  id: string;
+  motivo: string;
+  comentario: string | null;
+  data_cancelamento: string;
+}
+
+interface AfiliadoOrigem {
+  nome: string;
+  link_rastreio: string;
+}
+
+interface DetalhesUsuario {
+  loading: boolean;
+  pagamentos: Pagamento[];
+  assinatura: Assinatura | null;
+  feedback: Feedback | null;
+  afiliado: AfiliadoOrigem | null;
+}
+
 const PAGE_SIZE = 20;
 
 const statusBadge = (status: string) => {
@@ -70,10 +109,23 @@ const planoBadge = (plano: string) => {
   return <Badge variant="outline">{plano || '—'}</Badge>;
 };
 
+const pagamentoBadge = (status: string) => {
+  const s = (status || '').toUpperCase();
+  if (s === 'CONFIRMED' || s === 'RECEIVED')
+    return <Badge className="bg-primary text-primary-foreground hover:bg-primary/90">Pago</Badge>;
+  if (s === 'PENDING') return <Badge variant="secondary">Pendente</Badge>;
+  if (s === 'OVERDUE') return <Badge variant="destructive">Vencido</Badge>;
+  if (s === 'REFUNDED') return <Badge variant="outline">Reembolsado</Badge>;
+  return <Badge variant="outline">{status || '—'}</Badge>;
+};
+
 const formatDate = (iso: string | null) => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('pt-BR');
 };
+
+const formatBRL = (v: number) =>
+  Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const formatPhoneDisplay = (raw: string) => {
   const d = (raw || '').replace(/\D/g, '');
@@ -93,6 +145,13 @@ export default function Usuarios() {
   const [page, setPage] = useState(1);
   const [selecionado, setSelecionado] = useState<Usuario | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Usuario | null>(null);
+  const [detalhes, setDetalhes] = useState<DetalhesUsuario>({
+    loading: false,
+    pagamentos: [],
+    assinatura: null,
+    feedback: null,
+    afiliado: null,
+  });
 
   const load = async () => {
     setLoading(true);
@@ -111,6 +170,69 @@ export default function Usuarios() {
   useEffect(() => {
     load();
   }, []);
+
+  // Carrega detalhes ao abrir o drawer
+  useEffect(() => {
+    if (!selecionado) return;
+    let cancelled = false;
+    const run = async () => {
+      setDetalhes({
+        loading: true,
+        pagamentos: [],
+        assinatura: null,
+        feedback: null,
+        afiliado: null,
+      });
+
+      const tel = selecionado.telefone;
+
+      const [pagRes, assRes, fbRes, afilRes] = await Promise.all([
+        supabase
+          .from('pagamentos')
+          .select('id, valor, status, metodo, data_pagamento, data_vencimento')
+          .eq('telefone', tel)
+          .order('data_pagamento', { ascending: false, nullsFirst: false })
+          .limit(10),
+        supabase
+          .from('assinaturas')
+          .select('id, plano, ciclo, valor, status, data_inicio, proximo_vencimento')
+          .eq('telefone', tel)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('feedbacks_cancelamento')
+          .select('id, motivo, comentario, data_cancelamento')
+          .eq('telefone', tel)
+          .order('data_cancelamento', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // Heurística: se gateway indica afiliado, busca o afiliado mais recente como origem.
+        // TODO: substituir por relação real (campo afiliado_id em usuarios).
+        selecionado.gateway_pagamento === 'cortesia_afiliado'
+          ? supabase
+              .from('afiliados')
+              .select('nome, link_rastreio')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      if (cancelled) return;
+      setDetalhes({
+        loading: false,
+        pagamentos: (pagRes.data as Pagamento[]) ?? [],
+        assinatura: (assRes.data as Assinatura | null) ?? null,
+        feedback: (fbRes.data as Feedback | null) ?? null,
+        afiliado: (afilRes.data as AfiliadoOrigem | null) ?? null,
+      });
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [selecionado]);
 
   const filtrados = useMemo(() => {
     return usuarios.filter((u) => {
@@ -296,26 +418,121 @@ export default function Usuarios() {
         </CardContent>
       </Card>
 
-      {/* Drawer de detalhes */}
+      {/* Drawer de detalhes enriquecido */}
       <Sheet open={!!selecionado} onOpenChange={(open) => !open && setSelecionado(null)}>
-        <SheetContent className="sm:max-w-md">
+        <SheetContent className="sm:max-w-lg w-full overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Detalhes do Usuário</SheetTitle>
             <SheetDescription>
               {selecionado && formatPhoneDisplay(selecionado.telefone)}
             </SheetDescription>
           </SheetHeader>
+
           {selecionado && (
-            <div className="mt-6 space-y-4 text-sm">
-              <DetailRow label="ID interno" value={selecionado.id} mono />
-              <DetailRow label="User ID (auth)" value={selecionado.user_id} mono />
-              <DetailRow label="Telefone" value={formatPhoneDisplay(selecionado.telefone)} />
-              <DetailRow label="Plano" value={selecionado.plano} />
-              <DetailRow label="Status" value={selecionado.status} />
-              <DetailRow label="Gateway de pagamento" value={selecionado.gateway_pagamento || '—'} />
-              <DetailRow label="Próxima renovação" value={formatDate(selecionado.data_renovacao)} />
-              <DetailRow label="Cadastrado em" value={formatDate(selecionado.created_at)} />
-              <DetailRow label="Atualizado em" value={formatDate(selecionado.updated_at)} />
+            <div className="mt-6 space-y-7">
+              {/* Dados do cliente */}
+              <Section title="Dados do Cliente">
+                <DetailRow label="Telefone" value={formatPhoneDisplay(selecionado.telefone)} />
+                <DetailRow label="Plano" value={selecionado.plano} />
+                <DetailRow label="Status" value={selecionado.status} />
+                <DetailRow label="Gateway de pagamento" value={selecionado.gateway_pagamento || '—'} />
+                <DetailRow label="Próxima renovação" value={formatDate(selecionado.data_renovacao)} />
+                <DetailRow label="Cadastrado em" value={formatDate(selecionado.created_at)} />
+                <DetailRow label="Atualizado em" value={formatDate(selecionado.updated_at)} />
+                <DetailRow label="ID interno" value={selecionado.id} mono />
+                <DetailRow label="User ID (auth)" value={selecionado.user_id} mono />
+              </Section>
+
+              {/* Origem */}
+              <Section title="Origem">
+                {detalhes.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : detalhes.afiliado ? (
+                  <>
+                    <DetailRow label="Indicado por" value={detalhes.afiliado.nome} />
+                    <DetailRow label="Link de rastreio" value={detalhes.afiliado.link_rastreio} mono />
+                  </>
+                ) : selecionado.gateway_pagamento === 'cortesia_afiliado' ? (
+                  <p className="text-sm text-muted-foreground">
+                    Cortesia de afiliado — afiliado de origem não encontrado.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Cadastro direto / orgânico.</p>
+                )}
+              </Section>
+
+              {/* Assinatura ativa */}
+              <Section title="Assinatura Ativa">
+                {detalhes.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : detalhes.assinatura ? (
+                  <>
+                    <DetailRow label="Plano" value={detalhes.assinatura.plano || '—'} />
+                    <DetailRow label="Ciclo" value={detalhes.assinatura.ciclo} />
+                    <DetailRow label="Valor" value={formatBRL(detalhes.assinatura.valor)} />
+                    <DetailRow label="Status" value={detalhes.assinatura.status} />
+                    <DetailRow label="Início" value={formatDate(detalhes.assinatura.data_inicio)} />
+                    <DetailRow
+                      label="Próximo vencimento"
+                      value={formatDate(detalhes.assinatura.proximo_vencimento)}
+                    />
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem assinatura registrada.</p>
+                )}
+              </Section>
+
+              {/* Histórico de pagamentos */}
+              <Section title="Histórico de Pagamentos">
+                {detalhes.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : detalhes.pagamentos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum pagamento encontrado.</p>
+                ) : (
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="h-9">Data</TableHead>
+                          <TableHead className="h-9">Valor</TableHead>
+                          <TableHead className="h-9">Status</TableHead>
+                          <TableHead className="h-9">Método</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detalhes.pagamentos.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="text-xs py-2">
+                              {formatDate(p.data_pagamento ?? p.data_vencimento)}
+                            </TableCell>
+                            <TableCell className="text-xs py-2 tabular-nums">
+                              {formatBRL(p.valor)}
+                            </TableCell>
+                            <TableCell className="py-2">{pagamentoBadge(p.status)}</TableCell>
+                            <TableCell className="text-xs py-2 text-muted-foreground">
+                              {p.metodo || '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </Section>
+
+              {/* Feedback de cancelamento (condicional) */}
+              {detalhes.feedback && (
+                <Section title="Feedback de Cancelamento">
+                  <DetailRow label="Motivo" value={detalhes.feedback.motivo} />
+                  {detalhes.feedback.comentario && (
+                    <DetailRow label="Comentário" value={detalhes.feedback.comentario} />
+                  )}
+                  <DetailRow
+                    label="Data do cancelamento"
+                    value={formatDate(detalhes.feedback.data_cancelamento)}
+                  />
+                </Section>
+              )}
             </div>
           )}
         </SheetContent>
@@ -348,11 +565,24 @@ export default function Usuarios() {
   );
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+        {title}
+      </h3>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-1 pb-3 border-b border-border last:border-0">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className={mono ? 'font-mono text-xs break-all' : 'text-foreground'}>{value}</span>
+      <span className={mono ? 'font-mono text-xs break-all' : 'text-sm text-foreground break-words'}>
+        {value}
+      </span>
     </div>
   );
 }
