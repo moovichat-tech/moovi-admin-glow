@@ -318,30 +318,29 @@ export default function Afiliados() {
                       </button>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">{a.comissao_percentual}%</TableCell>
+                  <TableCell className="text-center">{num(a.comissao_percentual)}%</TableCell>
                   <TableCell className="text-center">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center gap-1 cursor-default">
-                            {(a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0)}
+                            {getCliques(a)}
                             <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>
-                            Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium:{' '}
-                            {a.cliques_premium ?? 0}
+                            Básico: {num(a.cliques_basico)} | Pro: {num(a.cliques_pro)} | Premium:{' '}
+                            {num(a.cliques_premium)}
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
-                  <TableCell className="text-center">{a.vendas}</TableCell>
+                  <TableCell className="text-center">{getVendas(a)}</TableCell>
                   <TableCell className="text-center">
                     {(() => {
-                      const total = (a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0);
-                      const taxa = total > 0 ? (a.vendas / total) * 100 : 0;
+                      const taxa = getConversao(a);
                       return (
                         <span className={taxa > 0 ? 'text-primary font-medium' : 'text-muted-foreground'}>
                           {taxa.toFixed(2)}%
@@ -349,12 +348,9 @@ export default function Afiliados() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {Number(a.comissao_total ?? a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
+                  <TableCell className="text-right">{brl(getSaldo(a))}</TableCell>
+                  <TableCell className="text-right font-medium">{brl(getComissaoTotal(a))}</TableCell>
+
                   <TableCell className="text-xs text-muted-foreground">{a.pix_chave}</TableCell>
                   <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
                   <TableCell>
