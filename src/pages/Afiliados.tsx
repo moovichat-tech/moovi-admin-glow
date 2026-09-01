@@ -24,22 +24,62 @@ interface Afiliado {
   nome: string;
   rede_social: string | null;
   whatsapp: string;
-  comissao_percentual: number;
+  comissao_percentual: number | string | null;
   pix_chave: string;
   link_rastreio: string;
-  vendas: number;
-  saldo_a_pagar: number;
-  comissao_total?: number;
-  cliques_basico: number;
-  cliques_pro: number;
-  cliques_premium: number;
+  vendas?: number | string | null;
+  vendas_realizadas?: number | string | null;
+  saldo_a_pagar?: number | string | null;
+  saldo_comissao?: number | string | null;
+  comissao_total?: number | string | null;
+  cliques_basico?: number | string | null;
+  cliques_pro?: number | string | null;
+  cliques_premium?: number | string | null;
+  cliques_total?: number | string | null;
   vencimento_acesso: string | null;
 }
+
+/** Converte qualquer valor (null, undefined, '', '1.234,56', '12.5') em número seguro */
+const num = (value: unknown): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value).trim();
+  if (!raw) return 0;
+  // trata formato pt-BR "1.234,56"
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+  const parsed = parseFloat(normalized.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const brl = (value: unknown) =>
+  num(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const getVendas = (a: Afiliado) => num(a.vendas_realizadas ?? a.vendas);
+
+const getCliques = (a: Afiliado) => {
+  const soma = num(a.cliques_basico) + num(a.cliques_pro) + num(a.cliques_premium);
+  return soma > 0 ? soma : num(a.cliques_total);
+};
+
+const getSaldo = (a: Afiliado) => num(a.saldo_comissao ?? a.saldo_a_pagar);
+
+const getComissaoTotal = (a: Afiliado) =>
+  a.comissao_total !== null && a.comissao_total !== undefined && a.comissao_total !== ''
+    ? num(a.comissao_total)
+    : getSaldo(a);
+
+const getConversao = (a: Afiliado) => {
+  const cliques = getCliques(a);
+  if (!cliques) return 0;
+  const taxa = (getVendas(a) / cliques) * 100;
+  return Number.isFinite(taxa) ? taxa : 0;
+};
 
 const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
 const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
 const EXCLUIR_URL = 'https://n8n.fisherai.shop/webhook/excluir-afiliado';
 const EDITAR_URL = 'https://n8n.fisherai.shop/webhook/editar-afiliado';
+
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -278,30 +318,29 @@ export default function Afiliados() {
                       </button>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">{a.comissao_percentual}%</TableCell>
+                  <TableCell className="text-center">{num(a.comissao_percentual)}%</TableCell>
                   <TableCell className="text-center">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center gap-1 cursor-default">
-                            {(a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0)}
+                            {getCliques(a)}
                             <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>
-                            Básico: {a.cliques_basico ?? 0} | Pro: {a.cliques_pro ?? 0} | Premium:{' '}
-                            {a.cliques_premium ?? 0}
+                            Básico: {num(a.cliques_basico)} | Pro: {num(a.cliques_pro)} | Premium:{' '}
+                            {num(a.cliques_premium)}
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
-                  <TableCell className="text-center">{a.vendas}</TableCell>
+                  <TableCell className="text-center">{getVendas(a)}</TableCell>
                   <TableCell className="text-center">
                     {(() => {
-                      const total = (a.cliques_basico ?? 0) + (a.cliques_pro ?? 0) + (a.cliques_premium ?? 0);
-                      const taxa = total > 0 ? (a.vendas / total) * 100 : 0;
+                      const taxa = getConversao(a);
                       return (
                         <span className={taxa > 0 ? 'text-primary font-medium' : 'text-muted-foreground'}>
                           {taxa.toFixed(2)}%
@@ -309,12 +348,9 @@ export default function Afiliados() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {Number(a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {Number(a.comissao_total ?? a.saldo_a_pagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
+                  <TableCell className="text-right">{brl(getSaldo(a))}</TableCell>
+                  <TableCell className="text-right font-medium">{brl(getComissaoTotal(a))}</TableCell>
+
                   <TableCell className="text-xs text-muted-foreground">{a.pix_chave}</TableCell>
                   <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
                   <TableCell>
