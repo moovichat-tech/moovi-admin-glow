@@ -1,6 +1,7 @@
 # Cadastro e controle de acesso de afiliados
 
 ## Objetivo
+
 Transformar **Gestão de Afiliados** no ponto único para cadastrar o afiliado e conceder, visualizar, adicionar ou retirar acesso ao Moovi, mantendo as tabelas `afiliados` e `usuarios` sincronizadas pela API do n8n.
 
 ## Alterações no backoffice
@@ -21,6 +22,7 @@ Transformar **Gestão de Afiliados** no ponto único para cadastrar o afiliado e
 ## Integração esperada com o n8n
 
 ### Cadastro: `POST /webhook/cadastrar-afiliado`
+
 O backoffice enviará:
 
 ```json
@@ -39,19 +41,22 @@ O backoffice enviará:
 
 O fluxo do n8n deverá executar uma transação no PostgreSQL externo:
 
-1. Validar e normalizar e-mail/telefone.
-2. Inserir o registro em `afiliados`, incluindo `email` e `vencimento_acesso = NOW() + 15 dias`.
-3. Inserir ou atualizar `usuarios` pelo telefone normalizado, preenchendo `nome`, `email`, `telefone`, `plano = 'PREMIUM'`, `status = 'Ativo'`, `data_renovacao = vencimento_acesso` e `gateway_pagamento = 'cortesia_afiliado'`.
-4. Retornar status 200/201 somente se as duas gravações forem concluídas; em erro, desfazer ambas.
-5. Nunca receber ou armazenar senha em texto puro. O primeiro acesso deve usar o fluxo seguro de criação/recuperação de senha já adotado pelo Moovi.
+- Validar e normalizar e-mail/telefone.
+- Inserir o registro em `afiliados`, incluindo `email` e `vencimento_acesso = NOW() + 15 dias`.
+- Inserir ou atualizar `usuarios` pelo telefone normalizado, preenchendo `nome`, `email`, `telefone`, `plano = 'PREMIUM'`, `status = 'Ativo'`, `data_renovacao = vencimento_acesso` e `gateway_pagamento = 'cortesia_afiliado'`.
+- Retornar status 200/201 somente se as duas gravações forem concluídas; em erro, desfazer ambas.
+- Nunca receber ou armazenar senha em texto puro. O primeiro acesso deve usar o fluxo seguro de criação/recuperação de senha já adotado pelo Moovi.
 
 ### Listagem: `GET /webhook/listar-afiliados`
+
 Além dos campos atuais, deverá retornar `email` e `vencimento_acesso`.
 
 ### Edição: `POST /webhook/editar-afiliado`
+
 Deverá aceitar `email` e manter nome, e-mail e telefone sincronizados em `afiliados` e `usuarios`.
 
 ### Ajuste de acesso: `POST /webhook/ajustar-acesso-afiliado`
+
 O backoffice enviará uma operação explícita e auditável:
 
 ```json
