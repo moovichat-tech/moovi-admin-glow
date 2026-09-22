@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import mooviLogo from '@/assets/moovi-logo.png';
 import { AFFILIATE_ID_KEY, AFFILIATE_NAME_KEY } from './AfiliadoLogin';
@@ -254,9 +255,7 @@ export default function AfiliadoDashboard() {
                         <span className="text-muted-foreground">{source.label}</span>
                         <span className="font-medium tabular-nums">{Math.trunc(source.value).toLocaleString('pt-BR')}</span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                        <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(source.value / maxClicks) * 100}%` }} />
-                      </div>
+                      <Progress value={(source.value / maxClicks) * 100} className="h-2" />
                     </div>
                   ))}
                 </CardContent>
