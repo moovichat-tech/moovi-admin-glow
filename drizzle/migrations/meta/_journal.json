@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790102503879,
+      "tag": "0000_restrict_backoffice_rls_to_admin_roles",
+      "breakpoints": true
+    }
+  ]
+}
