@@ -1,101 +1,80 @@
-## Escopo
+# Cadastro e controle de acesso de afiliados
 
-Quatro mudanças focadas no frontend (sem alterar backend nem webhooks novos). Onde a fonte de dados não está disponível ainda, uso dados de exemplo/mock claramente marcados, prontos pra trocar pela API depois.
+## Objetivo
+Transformar **Gestão de Afiliados** no ponto único para cadastrar o afiliado e conceder, visualizar, adicionar ou retirar acesso ao Moovi, mantendo as tabelas `afiliados` e `usuarios` sincronizadas pela API do n8n.
 
----
+## Alterações no backoffice
 
-## 1. Home (`src/pages/Home.tsx`) — reformular
+- Tornar **e-mail** e **WhatsApp** obrigatórios no cadastro e na edição.
+- Alterar a cortesia inicial padrão de 30 para **15 dias** e enviar o plano **PREMIUM**.
+- Exibir na tabela o e-mail e a situação do acesso, incluindo dias restantes e data de vencimento.
+- Criar uma ação específica de **Gerenciar acesso** em cada afiliado.
+- Nesse painel, permitir:
+  - adicionar dias ao vencimento atual;
+  - retirar dias do vencimento atual;
+  - informar qualquer quantidade inteira válida;
+  - visualizar antes de salvar a nova data e os novos dias restantes.
+- Impedir que a retirada produza uma data inválida; zero dias restantes deixa o acesso expirado/inativo.
+- Aplicar validações de nome, e-mail, telefone, comissão, PIX e dias antes de chamar a API.
+- Manter estados de carregamento, mensagens de sucesso/erro e atualização imediata da tabela.
 
-**Remover**: card "Seu Portal de Afiliados" (link + botão copiar).
+## Integração esperada com o n8n
 
-**Header da página** ganha um filtro de período no canto superior direito:
-- Select com: `Este mês`, `Últimos 3 meses`, `Últimos 6 meses`, `Últimos 12 meses`, `Este ano`, `Personalizado`.
-- Quando "Personalizado", abre um popover com dois `Calendar` (data inicial / data final) usando shadcn DatePicker (com `pointer-events-auto`).
-- O período selecionado afeta os KPIs e gráficos.
+### Cadastro: `POST /webhook/cadastrar-afiliado`
+O backoffice enviará:
 
-**KPIs (5 cards em grid responsivo)**:
-1. Quantidade de Usuários
-2. Receita
-3. Comissão de Afiliados
-4. Cliques
-5. Quantidade de Assinantes
+```json
+{
+  "nome": "Afiliado X",
+  "email": "afiliado@exemplo.com",
+  "rede_social": "@afiliado",
+  "whatsapp": "5562999999999",
+  "telefone": "5562999999999",
+  "comissao": 20,
+  "pix": "...",
+  "dias_acesso": 15,
+  "plano": "PREMIUM"
+}
+```
 
-Layout: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4`. Mantém o estilo `BigKpi` atual (card escuro, número grande tabular).
+O fluxo do n8n deverá executar uma transação no PostgreSQL externo:
 
-**Mantém os 2 gráficos** (Receita / Comissões) abaixo dos KPIs, agora alimentados pelo período global do header (removo os selects internos de cada gráfico).
+1. Validar e normalizar e-mail/telefone.
+2. Inserir o registro em `afiliados`, incluindo `email` e `vencimento_acesso = NOW() + 15 dias`.
+3. Inserir ou atualizar `usuarios` pelo telefone normalizado, preenchendo `nome`, `email`, `telefone`, `plano = 'PREMIUM'`, `status = 'Ativo'`, `data_renovacao = vencimento_acesso` e `gateway_pagamento = 'cortesia_afiliado'`.
+4. Retornar status 200/201 somente se as duas gravações forem concluídas; em erro, desfazer ambas.
+5. Nunca receber ou armazenar senha em texto puro. O primeiro acesso deve usar o fluxo seguro de criação/recuperação de senha já adotado pelo Moovi.
 
-**Novos blocos de Ranking** (lado a lado, `grid-cols-1 lg:grid-cols-2`):
-- **Top 10 Afiliados por Comissão** — tabela: posição, nome, comissão total (BRL).
-- **Top 10 Afiliados por Vendas** — tabela: posição, nome, vendas (qtd).
+### Listagem: `GET /webhook/listar-afiliados`
+Além dos campos atuais, deverá retornar `email` e `vencimento_acesso`.
 
-Posição renderizada como badge circular numerada (1, 2, 3 com destaque dourado/prata/bronze sutil usando tokens existentes; demais em `muted`).
+### Edição: `POST /webhook/editar-afiliado`
+Deverá aceitar `email` e manter nome, e-mail e telefone sincronizados em `afiliados` e `usuarios`.
 
-**Dados**: como o usuário pediu "foque apenas no frontend", uso arrays mock dentro de `Home.tsx` (constantes no topo: `MOCK_KPIS`, `MOCK_RANKING_COMISSAO`, `MOCK_RANKING_VENDAS`, `MOCK_SERIES`). Comentário `// TODO: ligar à API n8n` marcando os pontos de integração futura. Removo o `useEffect` que lê do Supabase.
+### Ajuste de acesso: `POST /webhook/ajustar-acesso-afiliado`
+O backoffice enviará uma operação explícita e auditável:
 
----
+```json
+{
+  "id": "uuid-do-afiliado",
+  "operacao": "adicionar",
+  "dias": 15
+}
+```
 
-## 2. Afiliados (`src/pages/Afiliados.tsx`) — coluna nova
+`operacao` aceitará `adicionar` ou `retirar`. O n8n deverá calcular a nova data no servidor, atualizar `afiliados.vencimento_acesso` e `usuarios.data_renovacao`, e definir `usuarios.status` como `Ativo` quando a data for futura ou `Inativo` quando expirar. A resposta deverá incluir a nova data.
 
-- Nova coluna "Comissão Total" entre "Vendas" e "Conversão" (ou após "Saldo a Pagar"). Decisão: colocar **logo após "Saldo a Pagar"**, com label `Comissão Total`, alinhada à direita, formatada em BRL.
-- Como o backend ainda não retorna esse campo: na interface `Afiliado` adiciono `comissao_total?: number` opcional. No render, uso `a.comissao_total ?? a.saldo_a_pagar` como fallback (mostra ao menos algo coerente até o webhook devolver o histórico).
-- Atualizar `colSpan` dos estados de loading/empty (de 11 para 12).
+## Banco externo
 
----
+- Adicionar `email` à tabela `afiliados`, se a coluna ainda não existir.
+- Garantir índice único normalizado para e-mail e/ou telefone conforme a regra de conta do Moovi.
+- Fazer a associação entre as tabelas por um identificador estável; até existir `afiliado_id` em `usuarios`, usar telefone normalizado sem duplicidades.
+- A coluna `data_renovacao` mostrada nas imagens será a data sincronizada do acesso de cortesia.
 
-## 3. Sidebar + rotas — remover Indicados
+## Validação
 
-- `src/components/AppSidebar.tsx`: remover item "Indicados" do `programaItems`. "Usuários" continua em Operações.
-- `src/App.tsx`: remover import `Indicados` e a rota `/indicados`.
-- `src/pages/Indicados.tsx`: deletar arquivo.
-
----
-
-## 4. Usuários (`src/pages/Usuarios.tsx`) — detalhes enriquecidos
-
-Mantém a tabela atual; o que muda é o **drawer de detalhes** (`Sheet`) ao clicar no olho.
-
-Reestruturar o conteúdo do drawer em seções:
-
-**Seção "Dados do Cliente"** (já existe, manter campos atuais: telefone, plano, status, gateway, renovação, cadastro, IDs).
-
-**Seção "Origem"** (nova):
-- Se `gateway_pagamento === 'cortesia_afiliado'` (ou outro marcador): mostrar nome do afiliado e link de rastreio.
-- Caso contrário: "Cadastro direto / orgânico".
-- Como não há FK afiliado→usuário no schema, uso lookup heurístico via Supabase: buscar em `afiliados` o registro cujo `link_rastreio` bate com algum campo de referência. Se não houver dado, mostro placeholder "—" + comentário `// TODO`.
-
-**Seção "Assinatura Ativa"** (nova):
-- Query `assinaturas` por `telefone = usuario.telefone` (mais recente, status ACTIVE).
-- Mostra: plano, ciclo, valor, próximo vencimento, data de início.
-- Estado vazio: "Sem assinatura ativa".
-
-**Seção "Histórico de Pagamentos"** (nova):
-- Query `pagamentos` por `telefone = usuario.telefone`, ordem desc por `data_pagamento`.
-- Lista compacta: data, valor (BRL), status (badge), método. Limita a 10 últimos com link "ver mais" desabilitado por enquanto.
-
-**Seção "Feedback de Cancelamento"** (nova, condicional):
-- Query `feedbacks_cancelamento` por `telefone = usuario.telefone`, ordem desc, take 1.
-- Se existir: mostra motivo, comentário, data_cancelamento.
-- Se não: seção não aparece.
-
-**Carregamento das seções extras**: ao abrir o drawer (`useEffect` em `selecionado`), dispara as 4 queries em paralelo via `Promise.all` e armazena em estado local (`detalhes`). Loader sutil enquanto carrega.
-
----
-
-## Detalhes técnicos
-
-- **Filtro de período (Home)**: estado `{ tipo: 'preset' | 'custom', preset?: string, from?: Date, to?: Date }`. Helper `getRange()` devolve `{from, to}` para qualquer caso. Usado para filtrar `MOCK_SERIES` por enquanto.
-- **DatePicker custom**: `Popover` + dois `Calendar mode="single"` lado a lado, com botão "Aplicar" no rodapé. Adicionar `className="pointer-events-auto"` no Calendar (regra do projeto).
-- **Ranking medals**: função `medalClass(pos)` retorna classes Tailwind (`bg-primary/20 text-primary` p/ 1º, `bg-secondary` p/ 2º-3º, `bg-muted` demais).
-- **Tipos**: `interface Pagamento`, `interface Assinatura`, `interface Feedback`, `interface AfiliadoOrigem` no topo de `Usuarios.tsx`.
-- **Não criar** novos componentes de UI shadcn — reusa `Card`, `Table`, `Badge`, `Sheet`, `Calendar`, `Popover`, `Select` já no projeto.
-
----
-
-## Arquivos afetados
-
-- editar: `src/pages/Home.tsx` (reescrito)
-- editar: `src/pages/Afiliados.tsx` (coluna nova)
-- editar: `src/pages/Usuarios.tsx` (drawer enriquecido)
-- editar: `src/components/AppSidebar.tsx` (remover item)
-- editar: `src/App.tsx` (remover rota/import)
-- deletar: `src/pages/Indicados.tsx`
+- Verificar cadastro com 15 dias e atualização imediata da tabela.
+- Verificar que o mesmo cadastro aparece em `afiliados` e `usuarios`.
+- Testar adição e retirada de dias, inclusive expiração.
+- Testar edição de e-mail/telefone sem criar usuário duplicado.
+- Confirmar mensagens de erro quando o n8n ainda não tiver recebido as mudanças descritas acima.
