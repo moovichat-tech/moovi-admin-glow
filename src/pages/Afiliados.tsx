@@ -16,12 +16,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, Copy, Plus, Info, Pencil } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CalendarClock, Loader2, Trash2, Copy, Plus, Info, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 interface Afiliado {
   id: string;
   nome: string;
+  email?: string | null;
   rede_social: string | null;
   whatsapp: string;
   comissao_percentual: number | string | null;
@@ -79,6 +82,19 @@ const LISTAR_URL = 'https://n8n.fisherai.shop/webhook/listar-afiliados';
 const CADASTRAR_URL = 'https://n8n.fisherai.shop/webhook/cadastrar-afiliado';
 const EXCLUIR_URL = 'https://n8n.fisherai.shop/webhook/excluir-afiliado';
 const EDITAR_URL = 'https://n8n.fisherai.shop/webhook/editar-afiliado';
+const AJUSTAR_ACESSO_URL = 'https://n8n.fisherai.shop/webhook/ajustar-acesso-afiliado';
+
+const affiliateSchema = z.object({
+  nome: z.string().trim().min(2, 'Informe o nome completo.').max(120),
+  email: z.string().trim().email('Informe um e-mail válido.').max(255),
+  redeSocial: z.string().trim().max(200),
+  whatsapp: z.string().refine((value) => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 10 || digits.length === 11 || (digits.startsWith('55') && digits.length >= 12);
+  }, 'Informe um WhatsApp válido com DDD.'),
+  comissao: z.coerce.number().min(0, 'A comissão não pode ser negativa.').max(100, 'A comissão não pode passar de 100%.'),
+  pixChave: z.string().trim().min(1, 'Informe a chave PIX.').max(120),
+});
 
 
 const formatPhone = (value: string) => {
@@ -101,6 +117,7 @@ const getAcessoBadge = (vencimento: string | null) => {
   if (!vencimento) return <span className="text-muted-foreground/60">-</span>;
   const now = new Date();
   const exp = new Date(vencimento);
+  if (Number.isNaN(exp.getTime())) return <span className="text-muted-foreground/60">-</span>;
   const diffMs = exp.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays > 0) {
@@ -109,22 +126,40 @@ const getAcessoBadge = (vencimento: string | null) => {
   return <Badge variant="destructive">Expirado</Badge>;
 };
 
+const getDiasRestantes = (vencimento: string | null) => {
+  if (!vencimento) return 0;
+  const expiration = new Date(vencimento);
+  if (Number.isNaN(expiration.getTime())) return 0;
+  return Math.max(0, Math.ceil((expiration.getTime() - Date.now()) / 86_400_000));
+};
+
+const formatDate = (value: string | null) => {
+  if (!value) return 'Sem vencimento';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Data inválida' : date.toLocaleDateString('pt-BR');
+};
+
 export default function Afiliados() {
   const [afiliados, setAfiliados] = useState<Afiliado[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editando, setEditando] = useState<Afiliado | null>(null);
+  const [gerenciandoAcesso, setGerenciandoAcesso] = useState<Afiliado | null>(null);
+  const [operacaoAcesso, setOperacaoAcesso] = useState<'adicionar' | 'retirar'>('adicionar');
+  const [diasAjuste, setDiasAjuste] = useState('15');
+  const [salvandoAcesso, setSalvandoAcesso] = useState(false);
   const [paraExcluir, setParaExcluir] = useState<Afiliado | null>(null);
   const [excluindo, setExcluindo] = useState(false);
 
   // form state
   const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [redeSocial, setRedeSocial] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [comissao, setComissao] = useState('20');
   const [pixChave, setPixChave] = useState('');
-  const [diasAcesso, setDiasAcesso] = useState('30');
+  const [diasAcesso, setDiasAcesso] = useState('15');
 
   const fetchAfiliados = async () => {
     setLoading(true);
@@ -149,11 +184,12 @@ export default function Afiliados() {
 
   const resetForm = () => {
     setNome('');
+    setEmail('');
     setRedeSocial('');
     setWhatsapp('');
     setComissao('20');
     setPixChave('');
-    setDiasAcesso('30');
+    setDiasAcesso('15');
     setEditando(null);
   };
 
@@ -165,6 +201,7 @@ export default function Afiliados() {
   const openEditar = (a: Afiliado) => {
     setEditando(a);
     setNome(a.nome);
+    setEmail(a.email || '');
     setRedeSocial(a.rede_social || '');
     setWhatsapp(phoneFromStored(a.whatsapp));
     setComissao(String(a.comissao_percentual));
@@ -176,11 +213,12 @@ export default function Afiliados() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const digits = stripPhone(whatsapp);
-    if (digits.length < 10) {
-      toast.error('WhatsApp inválido.');
+    const validation = affiliateSchema.safeParse({ nome, email, redeSocial, whatsapp, comissao, pixChave });
+    if (!validation.success) {
+      toast.error(validation.error.issues[0]?.message || 'Revise os dados informados.');
       return;
     }
+    const digits = stripPhone(validation.data.whatsapp);
     const whatsappLimpo = digits.startsWith('55') ? digits : `55${digits}`;
 
     const dias = Number(diasAcesso) || 0;
@@ -196,20 +234,24 @@ export default function Afiliados() {
       const body = editando
         ? {
             id: editando.id,
-            nome: nome.trim(),
-            rede_social: redeSocial.trim(),
+            nome: validation.data.nome,
+            email: validation.data.email.toLowerCase(),
+            rede_social: validation.data.redeSocial,
             whatsapp: whatsappLimpo,
-            comissao: Number(comissao),
-            pix: pixChave.trim(),
-            dias_renovacao: dias,
+            telefone: whatsappLimpo,
+            comissao: validation.data.comissao,
+            pix: validation.data.pixChave,
           }
         : {
-            nome: nome.trim(),
-            rede_social: redeSocial.trim(),
+            nome: validation.data.nome,
+            email: validation.data.email.toLowerCase(),
+            rede_social: validation.data.redeSocial,
             whatsapp: whatsappLimpo,
-            comissao: Number(comissao),
-            pix: pixChave.trim(),
+            telefone: whatsappLimpo,
+            comissao: validation.data.comissao,
+            pix: validation.data.pixChave,
             dias_acesso: dias,
+            plano: 'PREMIUM',
           };
 
       const res = await fetch(url, {
@@ -231,6 +273,56 @@ export default function Afiliados() {
       setSaving(false);
     }
   };
+
+  const openGerenciarAcesso = (afiliado: Afiliado) => {
+    setGerenciandoAcesso(afiliado);
+    setOperacaoAcesso('adicionar');
+    setDiasAjuste('15');
+  };
+
+  const handleAjustarAcesso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gerenciandoAcesso) return;
+    const dias = Number(diasAjuste);
+    if (!Number.isInteger(dias) || dias <= 0 || dias > 3650) {
+      toast.error('Informe uma quantidade inteira entre 1 e 3650 dias.');
+      return;
+    }
+    const restantes = getDiasRestantes(gerenciandoAcesso.vencimento_acesso);
+    if (operacaoAcesso === 'retirar' && dias > restantes) {
+      toast.error(`É possível retirar no máximo ${restantes} dia(s).`);
+      return;
+    }
+
+    setSalvandoAcesso(true);
+    try {
+      const res = await fetch(AJUSTAR_ACESSO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: gerenciandoAcesso.id, operacao: operacaoAcesso, dias }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success(operacaoAcesso === 'adicionar' ? 'Dias de acesso adicionados.' : 'Dias de acesso retirados.');
+      setGerenciandoAcesso(null);
+      await fetchAfiliados();
+    } catch (err) {
+      console.error('Erro ao ajustar acesso do afiliado:', err);
+      toast.error('Não foi possível atualizar o acesso. Verifique o fluxo no n8n.');
+    } finally {
+      setSalvandoAcesso(false);
+    }
+  };
+
+  const previewVencimento = (() => {
+    if (!gerenciandoAcesso) return null;
+    const dias = Number(diasAjuste);
+    if (!Number.isInteger(dias) || dias <= 0) return null;
+    const atual = gerenciandoAcesso.vencimento_acesso ? new Date(gerenciandoAcesso.vencimento_acesso) : new Date();
+    const base = Number.isNaN(atual.getTime()) || atual.getTime() < Date.now() ? new Date() : atual;
+    const novaData = new Date(base);
+    novaData.setDate(novaData.getDate() + (operacaoAcesso === 'adicionar' ? dias : -dias));
+    return novaData;
+  })();
 
   const handleDelete = async () => {
     if (!paraExcluir) return;
@@ -277,6 +369,7 @@ export default function Afiliados() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>E-mail</TableHead>
               <TableHead>Rede Social</TableHead>
               <TableHead>Link de Rastreio</TableHead>
               <TableHead className="text-center">Comissão</TableHead>
@@ -293,13 +386,13 @@ export default function Afiliados() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-10">
+                <TableCell colSpan={13} className="text-center py-10">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : afiliados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-10 text-muted-foreground">
                   Nenhum afiliado cadastrado.
                 </TableCell>
               </TableRow>
@@ -307,15 +400,16 @@ export default function Afiliados() {
               afiliados.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">{a.nome}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{a.email || '—'}</TableCell>
                   <TableCell className="text-sm">
                     {a.rede_social ? a.rede_social : <span className="text-muted-foreground/60">-</span>}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground truncate max-w-[200px]">{a.link_rastreio}</span>
-                      <button onClick={() => copyLink(a.link_rastreio)} className="text-muted-foreground hover:text-foreground">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => copyLink(a.link_rastreio)} className="h-7 w-7" title="Copiar link">
                         <Copy className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">{num(a.comissao_percentual)}%</TableCell>
@@ -355,20 +449,36 @@ export default function Afiliados() {
                   <TableCell className="text-center">{getAcessoBadge(a.vencimento_acesso)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <button
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openGerenciarAcesso(a)}
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        title="Gerenciar acesso"
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => openEditar(a)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setParaExcluir(a)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
                         title="Excluir"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -404,6 +514,19 @@ export default function Afiliados() {
                 required
                 maxLength={120}
                 placeholder="João da Silva"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                maxLength={255}
+                autoComplete="email"
+                placeholder="afiliado@exemplo.com"
               />
             </div>
             <div className="space-y-2">
@@ -449,20 +572,21 @@ export default function Afiliados() {
                 placeholder="CPF, e-mail ou chave aleatória"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="diasAcesso">
-                {editando ? 'Renovar acesso por (dias)' : 'Dias de Acesso ao Moovi (Cortesia)'}
-              </Label>
-              <Input
-                id="diasAcesso"
-                type="number"
-                min={editando ? 0 : 1}
-                max={3650}
-                value={diasAcesso}
-                onChange={(e) => setDiasAcesso(e.target.value)}
-                required
-              />
-            </div>
+            {!editando && (
+              <div className="space-y-2">
+                <Label htmlFor="diasAcesso">Dias de Acesso ao Moovi (Cortesia)</Label>
+                <Input
+                  id="diasAcesso"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={diasAcesso}
+                  onChange={(e) => setDiasAcesso(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">O afiliado será cadastrado no plano Premium.</p>
+              </div>
+            )}
             <DialogFooter>
               <Button type="submit" disabled={saving}>
                 {saving ? (
@@ -474,6 +598,66 @@ export default function Afiliados() {
                 ) : (
                   'Salvar Afiliado'
                 )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!gerenciandoAcesso} onOpenChange={(open) => !open && setGerenciandoAcesso(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gerenciar acesso ao Moovi</DialogTitle>
+            <DialogDescription>
+              {gerenciandoAcesso?.nome} · vencimento atual em {formatDate(gerenciandoAcesso?.vencimento_acesso ?? null)}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAjustarAcesso} className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="operacaoAcesso">Operação</Label>
+                <Select value={operacaoAcesso} onValueChange={(value: 'adicionar' | 'retirar') => setOperacaoAcesso(value)}>
+                  <SelectTrigger id="operacaoAcesso">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="adicionar">Adicionar dias</SelectItem>
+                    <SelectItem value="retirar">Retirar dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="diasAjuste">Quantidade de dias</Label>
+                <Input
+                  id="diasAjuste"
+                  type="number"
+                  min={1}
+                  max={operacaoAcesso === 'retirar' ? Math.max(1, getDiasRestantes(gerenciandoAcesso?.vencimento_acesso ?? null)) : 3650}
+                  step={1}
+                  value={diasAjuste}
+                  onChange={(e) => setDiasAjuste(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div className="rounded-md border border-border bg-muted/40 p-4">
+              <p className="text-xs text-muted-foreground">Resultado previsto</p>
+              <p className="mt-1 font-medium text-foreground">
+                {previewVencimento ? previewVencimento.toLocaleDateString('pt-BR') : 'Informe uma quantidade válida'}
+              </p>
+              {operacaoAcesso === 'retirar' && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Disponível para retirada: {getDiasRestantes(gerenciandoAcesso?.vencimento_acesso ?? null)} dia(s)
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setGerenciandoAcesso(null)} disabled={salvandoAcesso}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvandoAcesso || (operacaoAcesso === 'retirar' && getDiasRestantes(gerenciandoAcesso?.vencimento_acesso ?? null) === 0)}>
+                {salvandoAcesso && <Loader2 className="h-4 w-4 animate-spin" />}
+                Aplicar ajuste
               </Button>
             </DialogFooter>
           </form>
