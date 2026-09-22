@@ -500,7 +500,7 @@ export default function Afiliados() {
             <DialogTitle>{editando ? 'Editar Afiliado' : 'Novo Afiliado'}</DialogTitle>
             {editando && (
               <DialogDescription>
-                A edição não recria o link de rastreio nem reaplica acesso VIP automaticamente.
+                Nome, e-mail e telefone serão sincronizados com o acesso do afiliado no Moovi.
               </DialogDescription>
             )}
           </DialogHeader>
