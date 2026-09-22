@@ -130,18 +130,19 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AfiliadoDashboard() {
   const navigate = useNavigate();
-  const affiliateId = localStorage.getItem(AFFILIATE_ID_KEY);
+  const afiliadoId = localStorage.getItem(AFFILIATE_ID_KEY);
   const affiliateName = localStorage.getItem(AFFILIATE_NAME_KEY) || 'Afiliado';
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const loadDashboard = useCallback(async () => {
-    if (!affiliateId) return;
+    if (!afiliadoId) return;
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${DASHBOARD_URL}?id=${encodeURIComponent(affiliateId)}`, { cache: 'no-store' });
+      const dashboardUrl = `${DASHBOARD_URL}?id=${encodeURIComponent(afiliadoId)}`;
+      const response = await fetch(dashboardUrl, { cache: 'no-store' });
       const result = (await response.json().catch(() => ({}))) as DashboardResponse & { mensagem?: string };
       if (!response.ok) throw new Error(result.mensagem ?? 'Não foi possível carregar seus dados.');
       setData(normalizeData(result));
@@ -150,13 +151,13 @@ export default function AfiliadoDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [affiliateId]);
+  }, [afiliadoId]);
 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
 
-  if (!affiliateId) return <Navigate to="/afiliado" replace />;
+  if (!afiliadoId) return <Navigate to="/afiliado" replace />;
 
   const logout = () => {
     localStorage.removeItem(AFFILIATE_ID_KEY);
