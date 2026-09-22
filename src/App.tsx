@@ -18,6 +18,8 @@ import Usuarios from "./pages/Usuarios";
 import Feedbacks from "./pages/Feedbacks";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import AfiliadoLogin from "./pages/AfiliadoLogin";
+import AfiliadoDashboard from "./pages/AfiliadoDashboard";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/afiliado" element={<AfiliadoLogin />} />
+            <Route path="/afiliado/dashboard" element={<AfiliadoDashboard />} />
             <Route
               element={
                 <ProtectedRoute>
