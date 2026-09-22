@@ -164,7 +164,9 @@ export default function Afiliados() {
   const fetchAfiliados = async () => {
     setLoading(true);
     try {
-      const res = await fetch(LISTAR_URL, { method: 'GET' });
+      const url = new URL(LISTAR_URL);
+      url.searchParams.set('_atualizado_em', Date.now().toString());
+      const res = await fetch(url, { method: 'GET', cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const lista: Afiliado[] = Array.isArray(json) ? json : (json.data ?? json.afiliados ?? []);
@@ -302,6 +304,10 @@ export default function Afiliados() {
         body: JSON.stringify({ id: gerenciandoAcesso.id, operacao: operacaoAcesso, dias }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const resposta = await res.json().catch(() => null);
+      if (resposta?.status && !['sucesso', 'success'].includes(String(resposta.status).toLowerCase())) {
+        throw new Error(resposta?.mensagem || resposta?.message || 'O fluxo não confirmou a atualização.');
+      }
       toast.success(operacaoAcesso === 'adicionar' ? 'Dias de acesso adicionados.' : 'Dias de acesso retirados.');
       setGerenciandoAcesso(null);
       await fetchAfiliados();
