@@ -38,7 +38,7 @@ const portalSteps = [
   {
     title: 'Acesso Simplificado',
     description:
-      'O afiliado acessa a página e entra no sistema digitando apenas o seu e-mail cadastrado (autenticação segura e sem senhas complexas).',
+      'O afiliado abre seu link personalizado e acessa o painel. Sem o link, pode entrar com o e-mail cadastrado.',
     icon: KeyRound,
   },
   {
@@ -75,7 +75,7 @@ export default function PortalAfiliado() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => { void loadAfiliados(); }, [loadAfiliados]);
 
