@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Loader2, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,12 +25,14 @@ const unwrapResponse = (value: AuthResponse): AuthResponse => value.data ?? valu
 
 export default function AfiliadoLogin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (localStorage.getItem(AFFILIATE_ID_KEY)) {
-    return <Navigate to="/afiliado/dashboard" replace />;
+  const linkId = searchParams.get('id')?.trim();
+  if (linkId) {
+    return <Navigate to={`/afiliado/dashboard?id=${encodeURIComponent(linkId)}`} replace />;
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
