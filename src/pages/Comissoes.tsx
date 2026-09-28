@@ -100,7 +100,7 @@ const formatDate = (value: string | null) => {
 
 const extractArray = <T,>(payload: unknown, keys: string[]): T[] => {
   if (Array.isArray(payload)) return payload as T[];
-  if (!payload || typeof payload !== 'object') return [];
+  if (!payload || typeof payload !== 'object') throw new Error('Resposta inesperada do serviço de comissões.');
 
   const record = payload as Record<string, unknown>;
   for (const key of keys) {
@@ -114,7 +114,7 @@ const extractArray = <T,>(payload: unknown, keys: string[]): T[] => {
     }
   }
 
-  return [];
+  throw new Error('O serviço de comissões não retornou uma lista.');
 };
 
 const normalizeResumo = (item: ResumoComissaoApi, index: number): ResumoComissao => ({
@@ -153,9 +153,7 @@ export default function Comissoes() {
     setErroResumo(false);
 
     try {
-      const url = new URL(RESUMO_URL);
-      url.searchParams.set('_atualizado_em', Date.now().toString());
-      const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+      const response = await fetch(RESUMO_URL, { method: 'GET', cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const payload: unknown = await response.json();
@@ -184,10 +182,9 @@ export default function Comissoes() {
     setTransacoes([]);
 
     try {
-      const url = new URL(DETALHES_URL);
-      url.searchParams.set('afiliado_id', afiliadoId);
-      url.searchParams.set('_atualizado_em', Date.now().toString());
-      const response = await fetch(url, { method: 'GET', cache: 'no-store', signal });
+      const response = await fetch(`${DETALHES_URL}?afiliado_id=${encodeURIComponent(afiliadoId)}`, {
+        method: 'GET', cache: 'no-store', signal,
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const payload: unknown = await response.json();
