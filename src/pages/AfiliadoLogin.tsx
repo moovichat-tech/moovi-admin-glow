@@ -35,10 +35,6 @@ export default function AfiliadoLogin() {
     return <Navigate to={`/afiliado/dashboard?id=${encodeURIComponent(linkId)}`} replace />;
   }
 
-  if (localStorage.getItem(AFFILIATE_ID_KEY)) {
-    return <Navigate to="/afiliado/dashboard" replace />;
-  }
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
