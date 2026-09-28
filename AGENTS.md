@@ -1,0 +1,1 @@
+- Links personalizados do portal carregam o ID na URL e priorizam esse ID sobre o armazenamento local; isso evita exibir dados do afiliado anterior ao abrir outro link.

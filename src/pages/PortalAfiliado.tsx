@@ -1,10 +1,28 @@
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Copy, ExternalLink, LayoutDashboard, Send, UserPlus, KeyRound } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Copy, ExternalLink, LayoutDashboard, Send, UserPlus, KeyRound, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
-const portalLink = 'https://backoffice.moovi.chat/afiliado';
+const RESUMO_URL = 'https://n8n.fisherai.shop/webhook/resumo-comissoes';
+const PORTAL_URL = 'https://backoffice.moovi.chat/afiliado';
+
+type AfiliadoResumo = { afiliado_id?: string | number; id?: string | number; nome?: string | null };
+
+function extractAfiliados(payload: unknown): AfiliadoResumo[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    for (const key of ['data', 'afiliados', 'resumo']) {
+      if (Array.isArray(record[key])) return record[key] as AfiliadoResumo[];
+    }
+    if (record.data && typeof record.data === 'object') return extractAfiliados(record.data);
+  }
+  throw new Error('O serviço não retornou a lista de afiliados.');
+}
 
 const portalSteps = [
   {
@@ -32,9 +50,43 @@ const portalSteps = [
 ];
 
 export default function PortalAfiliado() {
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copiado!');
+  const [afiliados, setAfiliados] = useState<{ id: string; nome: string }[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const portalLink = selectedId ? `${PORTAL_URL}?id=${encodeURIComponent(selectedId)}` : '';
+
+  const loadAfiliados = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(RESUMO_URL, { method: 'GET', cache: 'no-store' });
+      if (!response.ok) throw new Error('Não foi possível carregar os afiliados.');
+      const payload: unknown = await response.json();
+      const items = extractAfiliados(payload)
+        .map((item) => ({ id: String(item.afiliado_id ?? item.id ?? ''), nome: item.nome?.trim() || 'Afiliado sem nome' }))
+        .filter((item) => item.id);
+      setAfiliados(items);
+      setSelectedId((current) => items.some((item) => item.id === current) ? current : '');
+    } catch (caught) {
+      setAfiliados([]);
+      setSelectedId('');
+      setError(caught instanceof Error ? caught.message : 'Não foi possível carregar os afiliados.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadAfiliados(); }, [loadAfiliados]);
+
+  const copy = async () => {
+    if (!portalLink) return;
+    try {
+      await navigator.clipboard.writeText(portalLink);
+      toast.success('Copiado!');
+    } catch {
+      toast.error('Não foi possível copiar o link.');
+    }
   };
 
   return (
@@ -52,13 +104,27 @@ export default function PortalAfiliado() {
           <CardDescription>Envie este link para seus afiliados acessarem o painel restrito.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="affiliate-select">Selecione um Afiliado</Label>
+            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || afiliados.length === 0}>
+              <SelectTrigger id="affiliate-select" className="w-full sm:max-w-sm">
+                <SelectValue placeholder={loading ? 'Carregando afiliados...' : 'Selecione um afiliado'} />
+              </SelectTrigger>
+              <SelectContent>
+                {afiliados.map((item) => <SelectItem key={item.id} value={item.id}>{item.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {loading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando afiliados...</p>}
+            {error && <div className="flex items-center gap-2 text-sm text-destructive" role="alert">{error}<Button variant="outline" size="sm" onClick={() => void loadAfiliados()}><RefreshCw className="h-4 w-4" />Tentar novamente</Button></div>}
+            {!loading && !error && afiliados.length === 0 && <p className="text-sm text-muted-foreground">Nenhum afiliado encontrado.</p>}
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input readOnly value={portalLink} className="font-mono text-sm bg-secondary/40" />
-            <Button variant="secondary" onClick={() => copy(portalLink)}>
+            <Input aria-label="Link do Portal" readOnly value={portalLink} placeholder="Selecione um afiliado para gerar o link" className="min-w-0 font-mono text-sm bg-secondary/40" />
+            <Button variant="secondary" disabled={!portalLink} onClick={() => void copy()}>
               <Copy className="h-4 w-4" />
               Copiar
             </Button>
-            <Button variant="outline" onClick={() => window.open(portalLink, '_blank')}>
+            <Button variant="outline" disabled={!portalLink} onClick={() => window.open(portalLink, '_blank', 'noopener,noreferrer')}>
               <ExternalLink className="h-4 w-4" />
               Abrir em nova guia
             </Button>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { BarChart3, LogOut, MousePointerClick, ReceiptText, RefreshCw, WalletCards } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -130,8 +130,11 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AfiliadoDashboard() {
   const navigate = useNavigate();
-  const afiliadoId = localStorage.getItem(AFFILIATE_ID_KEY);
-  const affiliateName = localStorage.getItem(AFFILIATE_NAME_KEY) || 'Afiliado';
+  const [searchParams] = useSearchParams();
+  const linkId = searchParams.get('id')?.trim();
+  const storedId = localStorage.getItem(AFFILIATE_ID_KEY);
+  const afiliadoId = linkId || storedId;
+  const affiliateName = storedId === afiliadoId ? localStorage.getItem(AFFILIATE_NAME_KEY) || 'Afiliado' : 'Afiliado';
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
