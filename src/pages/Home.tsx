@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -12,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ResponsiveContainer,
@@ -24,41 +25,60 @@ import {
   AreaChart,
 } from 'recharts';
 
-// TODO: ligar à API n8n quando endpoints estiverem prontos
-const MOCK_KPIS = {
-  usuarios: 1284,
-  receita: 87450.0,
-  comissao: 17490.0,
-  cliques: 9421,
-  assinantes: 612,
+const OVERVIEW_URL = 'https://n8n.fisherai.shop/webhook/visao-geral-programa';
+
+type ApiNumber = number | string | null | undefined;
+type OverviewPayload = {
+  total_usuarios_pagantes?: ApiNumber;
+  total_cliques?: ApiNumber;
+  receita_afiliados?: ApiNumber;
+  comissao_afiliados?: ApiNumber;
+  top_comissoes?: { nome?: string | null; total_comissao?: ApiNumber }[] | null;
+  top_vendas?: { nome?: string | null; total_vendas?: ApiNumber }[] | null;
+};
+type OverviewData = {
+  users: number;
+  clicks: number;
+  revenue: number;
+  commission: number;
+  topCommissions: { nome: string; valor: number }[];
+  topSales: { nome: string; valor: number }[];
 };
 
-// TODO: ligar à API n8n
-const MOCK_RANKING_COMISSAO = [
-  { nome: 'Lucas Almeida', valor: 4280 },
-  { nome: 'Mariana Costa', valor: 3890 },
-  { nome: 'Pedro Henrique', valor: 3115 },
-  { nome: 'Juliana Ramos', valor: 2640 },
-  { nome: 'Rafael Souza', valor: 2210 },
-  { nome: 'Camila Ferreira', valor: 1985 },
-  { nome: 'Bruno Lima', valor: 1720 },
-  { nome: 'Patrícia Oliveira', valor: 1490 },
-  { nome: 'Gustavo Martins', valor: 1280 },
-  { nome: 'Aline Pereira', valor: 1110 },
-];
+const EMPTY_OVERVIEW: OverviewData = {
+  users: 0,
+  clicks: 0,
+  revenue: 0,
+  commission: 0,
+  topCommissions: [],
+  topSales: [],
+};
 
-const MOCK_RANKING_VENDAS = [
-  { nome: 'Mariana Costa', valor: 96 },
-  { nome: 'Lucas Almeida', valor: 88 },
-  { nome: 'Camila Ferreira', valor: 71 },
-  { nome: 'Pedro Henrique', valor: 64 },
-  { nome: 'Bruno Lima', valor: 58 },
-  { nome: 'Juliana Ramos', valor: 51 },
-  { nome: 'Rafael Souza', valor: 47 },
-  { nome: 'Gustavo Martins', valor: 39 },
-  { nome: 'Patrícia Oliveira', valor: 33 },
-  { nome: 'Aline Pereira', valor: 28 },
-];
+const toNumber = (value: ApiNumber) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string' || !value.trim()) return 0;
+  const normalized = value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeOverview = (payload?: OverviewPayload): OverviewData => {
+  if (!payload) return EMPTY_OVERVIEW;
+  return {
+    users: toNumber(payload.total_usuarios_pagantes),
+    clicks: toNumber(payload.total_cliques),
+    revenue: toNumber(payload.receita_afiliados),
+    commission: toNumber(payload.comissao_afiliados),
+    topCommissions: (payload.top_comissoes ?? []).slice(0, 10).map((item) => ({
+      nome: item.nome?.trim() || 'Afiliado não informado',
+      valor: toNumber(item.total_comissao),
+    })),
+    topSales: (payload.top_vendas ?? []).slice(0, 10).map((item) => ({
+      nome: item.nome?.trim() || 'Afiliado não informado',
+      valor: Math.trunc(toNumber(item.total_vendas)),
+    })),
+  };
+};
 
 // Série mensal (12 meses) — TODO: trocar por dados reais
 const baseSeries = (seed: number) => {

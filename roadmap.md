@@ -2,3 +2,4 @@
 - [x] Abrir o painel do afiliado diretamente por link com ID e preservar acesso por e-mail.
 - [x] Conferir que o dashboard envia o ID real no GET.
 - [x] Interpretar resposta em array do dashboard, vincular nome, métricas e histórico e tratar retorno vazio.
+- [x] Integrar a Visão Geral do Programa às métricas consolidadas e rankings do novo webhook.
