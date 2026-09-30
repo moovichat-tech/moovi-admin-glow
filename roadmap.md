@@ -1,3 +1,4 @@
 - [x] Gerar links personalizados no backoffice a partir do resumo de comissões.
 - [x] Abrir o painel do afiliado diretamente por link com ID e preservar acesso por e-mail.
 - [x] Conferir que o dashboard envia o ID real no GET.
+- [ ] Interpretar resposta em array do dashboard, vincular nome, métricas e histórico e tratar retorno vazio.

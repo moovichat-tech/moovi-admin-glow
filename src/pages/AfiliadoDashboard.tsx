@@ -28,6 +28,7 @@ type ApiSale = {
 };
 
 type DashboardPayload = {
+  nome?: string | null;
   comissoes_pendentes?: ApiNumber;
   total_pendente?: ApiNumber;
   saldo_a_pagar?: ApiNumber;
@@ -41,7 +42,7 @@ type DashboardPayload = {
   historico_comissoes?: ApiSale[] | null;
 };
 
-type DashboardResponse = DashboardPayload & { data?: DashboardPayload };
+type DashboardResponse = DashboardPayload | DashboardPayload[] | { data?: DashboardPayload | DashboardPayload[]; mensagem?: string };
 
 type Sale = {
   id: string;
@@ -53,6 +54,7 @@ type Sale = {
 };
 
 type DashboardData = {
+  name: string | null;
   pending: number;
   paid: number;
   clicks: number;
@@ -80,15 +82,17 @@ const formatDate = (value: string | null) => {
 };
 
 const normalizeData = (response: DashboardResponse): DashboardData => {
-  const payload = response.data ?? response;
+  const unwrapped = !Array.isArray(response) && 'data' in response ? response.data ?? response : response;
+  const payload = (Array.isArray(unwrapped) ? unwrapped[0] : unwrapped) ?? {};
   const basic = toNumber(payload.cliques_basico);
   const pro = toNumber(payload.cliques_pro);
   const premium = toNumber(payload.cliques_premium);
   const history = Array.isArray(payload.historico_comissoes) ? payload.historico_comissoes : [];
 
   return {
-    pending: toNumber(payload.comissoes_pendentes ?? payload.total_pendente ?? payload.saldo_a_pagar),
-    paid: toNumber(payload.comissoes_pagas ?? payload.total_pago),
+    name: payload.nome?.trim() || null,
+    pending: toNumber(payload.total_pendente ?? payload.comissoes_pendentes ?? payload.saldo_a_pagar),
+    paid: toNumber(payload.total_pago ?? payload.comissoes_pagas),
     clicks: toNumber(payload.total_cliques ?? payload.cliques_total) || basic + pro + premium,
     basic,
     pro,
@@ -134,7 +138,7 @@ export default function AfiliadoDashboard() {
   const linkId = searchParams.get('id')?.trim();
   const storedId = localStorage.getItem(AFFILIATE_ID_KEY);
   const afiliadoId = linkId || storedId;
-  const affiliateName = storedId === afiliadoId ? localStorage.getItem(AFFILIATE_NAME_KEY) || 'Afiliado' : 'Afiliado';
+  const fallbackName = storedId === afiliadoId ? localStorage.getItem(AFFILIATE_NAME_KEY) || 'Afiliado' : 'Afiliado';
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -146,8 +150,9 @@ export default function AfiliadoDashboard() {
     try {
       const dashboardUrl = `${DASHBOARD_URL}?id=${encodeURIComponent(afiliadoId)}`;
       const response = await fetch(dashboardUrl, { cache: 'no-store' });
-      const result = (await response.json().catch(() => ({}))) as DashboardResponse & { mensagem?: string };
-      if (!response.ok) throw new Error(result.mensagem ?? 'Não foi possível carregar seus dados.');
+       const result = (await response.json().catch(() => ({}))) as DashboardResponse;
+       const message = !Array.isArray(result) && 'mensagem' in result ? result.mensagem : undefined;
+       if (!response.ok) throw new Error(message ?? 'Não foi possível carregar seus dados.');
       setData(normalizeData(result));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível carregar seus dados.');
@@ -192,7 +197,7 @@ export default function AfiliadoDashboard() {
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <div>
           <p className="text-sm font-medium text-primary">Portal do Afiliado</p>
-          <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Olá, {affiliateName}</h1>
+           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Olá, {data?.name || fallbackName}</h1>
           <p className="mt-2 text-sm text-muted-foreground">Acompanhe o desempenho das suas indicações.</p>
         </div>
 
