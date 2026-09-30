@@ -81,9 +81,9 @@ const formatDate = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR');
 };
 
-const normalizeData = (response: DashboardResponse): DashboardData => {
-  const unwrapped = !Array.isArray(response) && 'data' in response ? response.data ?? response : response;
-  const payload = (Array.isArray(unwrapped) ? unwrapped[0] : unwrapped) ?? {};
+const normalizeData = (response: DashboardResponse | null): DashboardData => {
+  const unwrapped = response && !Array.isArray(response) && 'data' in response ? response.data ?? response : response;
+  const payload: DashboardPayload = (Array.isArray(unwrapped) ? unwrapped[0] : unwrapped) ?? {};
   const basic = toNumber(payload.cliques_basico);
   const pro = toNumber(payload.cliques_pro);
   const premium = toNumber(payload.cliques_premium);
@@ -150,8 +150,8 @@ export default function AfiliadoDashboard() {
     try {
       const dashboardUrl = `${DASHBOARD_URL}?id=${encodeURIComponent(afiliadoId)}`;
       const response = await fetch(dashboardUrl, { cache: 'no-store' });
-       const result = (await response.json().catch(() => ({}))) as DashboardResponse;
-       const message = !Array.isArray(result) && 'mensagem' in result ? result.mensagem : undefined;
+       const result = (await response.json().catch(() => ({}))) as DashboardResponse | null;
+       const message = result && !Array.isArray(result) && 'mensagem' in result ? result.mensagem : undefined;
        if (!response.ok) throw new Error(message ?? 'Não foi possível carregar seus dados.');
       setData(normalizeData(result));
     } catch (caught) {
