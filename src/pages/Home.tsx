@@ -125,6 +125,31 @@ export default function Home() {
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [overview, setOverview] = useState<OverviewData>(EMPTY_OVERVIEW);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadOverview = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const response = await fetch(OVERVIEW_URL, { cache: 'no-store' });
+      const json = (await response.json().catch(() => null)) as OverviewPayload[] | null;
+      if (!response.ok) throw new Error('Não foi possível carregar as métricas do programa.');
+      if (json !== null && !Array.isArray(json)) throw new Error('A resposta das métricas está em um formato inválido.');
+      const data = Array.isArray(json) ? json[0] : undefined;
+      setOverview(normalizeOverview(data));
+    } catch (caught) {
+      setOverview(EMPTY_OVERVIEW);
+      setError(caught instanceof Error ? caught.message : 'Não foi possível carregar as métricas do programa.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
 
   const range = useMemo(
     () => getRange(preset, customFrom, customTo),
@@ -235,13 +260,22 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 5 KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <Kpi title="Usuários" value={MOCK_KPIS.usuarios.toLocaleString('pt-BR')} />
-        <Kpi title="Receita" value={formatBRL(MOCK_KPIS.receita)} />
-        <Kpi title="Comissão de Afiliados" value={formatBRL(MOCK_KPIS.comissao)} />
-        <Kpi title="Cliques" value={MOCK_KPIS.cliques.toLocaleString('pt-BR')} />
-        <Kpi title="Assinantes" value={MOCK_KPIS.assinantes.toLocaleString('pt-BR')} />
+      {error && (
+        <div className="flex items-center justify-between gap-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => void loadOverview()}>
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+
+      {/* Métricas consolidadas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Kpi title="Usuários / Assinantes" value={overview.users.toLocaleString('pt-BR')} isLoading={isLoading} />
+        <Kpi title="Receita" value={formatBRL(overview.revenue)} isLoading={isLoading} />
+        <Kpi title="Comissão de Afiliados" value={formatBRL(overview.commission)} isLoading={isLoading} />
+        <Kpi title="Cliques" value={Math.trunc(overview.clicks).toLocaleString('pt-BR')} isLoading={isLoading} />
       </div>
 
       {/* Gráficos */}
@@ -265,30 +299,36 @@ export default function Home() {
         <RankingCard
           title="Top 10 Afiliados por Comissão"
           subtitle="Maior comissão acumulada no período"
-          rows={MOCK_RANKING_COMISSAO}
+          rows={overview.topCommissions}
           formatValue={formatBRL}
+          isLoading={isLoading}
         />
         <RankingCard
           title="Top 10 Afiliados por Vendas"
           subtitle="Maior número de vendas convertidas"
-          rows={MOCK_RANKING_VENDAS}
+          rows={overview.topSales}
           formatValue={(v) => v.toLocaleString('pt-BR')}
+          isLoading={isLoading}
         />
       </div>
     </div>
   );
 }
 
-function Kpi({ title, value }: { title: string; value: string }) {
+function Kpi({ title, value, isLoading }: { title: string; value: string; isLoading: boolean }) {
   return (
     <Card className="bg-card/40 border-border/60">
       <CardContent className="p-5">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {title}
         </p>
-        <p className="text-2xl font-semibold tracking-tight text-foreground mt-3 tabular-nums">
-          {value}
-        </p>
+        {isLoading ? (
+          <Skeleton className="mt-3 h-8 w-3/4" />
+        ) : (
+          <p className="text-2xl font-semibold tracking-tight text-foreground mt-3 tabular-nums">
+            {value}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -378,11 +418,13 @@ function RankingCard({
   subtitle,
   rows,
   formatValue,
+  isLoading,
 }: {
   title: string;
   subtitle: string;
   rows: { nome: string; valor: number }[];
   formatValue: (v: number) => string;
+  isLoading: boolean;
 }) {
   return (
     <Card className="bg-card/40 border-border/60">
@@ -391,10 +433,25 @@ function RankingCard({
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p className="text-xs text-muted-foreground/70 mt-1">{subtitle}</p>
         </div>
-        <ul className="space-y-2">
+        {isLoading ? (
+          <div className="space-y-3" aria-label="Carregando ranking">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-3 p-2.5">
+                <Skeleton className="h-7 w-7 rounded-full" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex min-h-52 items-center justify-center text-center">
+            <p className="text-sm text-muted-foreground">Nenhum dado registrado no período</p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
           {rows.map((r, i) => (
             <li
-              key={r.nome}
+              key={`${r.nome}-${i}`}
               className="flex items-center justify-between gap-3 p-2.5 rounded-md hover:bg-secondary/30 transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -413,7 +470,8 @@ function RankingCard({
               </span>
             </li>
           ))}
-        </ul>
+          </ul>
+        )}
       </CardContent>
     </Card>
   );
