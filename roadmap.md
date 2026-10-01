@@ -3,3 +3,4 @@
 - [x] Conferir que o dashboard envia o ID real no GET.
 - [x] Interpretar resposta em array do dashboard, vincular nome, métricas e histórico e tratar retorno vazio.
 - [x] Integrar a Visão Geral do Programa às métricas consolidadas e rankings do novo webhook.
+- [x] Substituir os gráficos demonstrativos pelo histórico mensal do webhook e mostrar os totais consolidados acima deles.

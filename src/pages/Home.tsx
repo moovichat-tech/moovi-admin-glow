@@ -35,7 +35,9 @@ type OverviewPayload = {
   comissao_afiliados?: ApiNumber;
   top_comissoes?: { nome?: string | null; total_comissao?: ApiNumber }[] | null;
   top_vendas?: { nome?: string | null; total_vendas?: ApiNumber }[] | null;
+  historico_grafico?: { mes?: string | null; receita?: ApiNumber; comissao?: ApiNumber }[] | null;
 };
+type MonthlyHistory = { mes: string; receita: number; comissao: number };
 type OverviewData = {
   users: number;
   clicks: number;
@@ -43,6 +45,7 @@ type OverviewData = {
   commission: number;
   topCommissions: { nome: string; valor: number }[];
   topSales: { nome: string; valor: number }[];
+  history: MonthlyHistory[];
 };
 
 const EMPTY_OVERVIEW: OverviewData = {
@@ -52,6 +55,7 @@ const EMPTY_OVERVIEW: OverviewData = {
   commission: 0,
   topCommissions: [],
   topSales: [],
+  history: [],
 };
 
 const toNumber = (value: ApiNumber) => {
@@ -77,24 +81,20 @@ const normalizeOverview = (payload?: OverviewPayload): OverviewData => {
       nome: item.nome?.trim() || 'Afiliado não informado',
       valor: Math.trunc(toNumber(item.total_vendas)),
     })),
+    history: (Array.isArray(payload.historico_grafico) ? payload.historico_grafico : [])
+      .filter((item): item is typeof item & { mes: string } => typeof item.mes === 'string' && isValidMonth(item.mes))
+      .map((item) => ({ mes: item.mes, receita: toNumber(item.receita), comissao: toNumber(item.comissao) }))
+      .sort((a, b) => a.mes.localeCompare(b.mes)),
   };
 };
 
-// Série mensal (12 meses) — TODO: trocar por dados reais
-const baseSeries = (seed: number) => {
-  const now = new Date();
-  return Array.from({ length: 12 }).map((_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
-    const valor =
-      Math.round(
-        (Math.sin((i + seed) * 0.7) * 0.4 + 0.6) * (seed === 0 ? 14000 : 3200) +
-          (seed === 0 ? 4000 : 800),
-      );
-    return { date: d, mes: format(d, 'MMM/yy', { locale: ptBR }), valor };
-  });
+const isValidMonth = (month: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
+
+const formatMonth = (month: string) => {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const label = format(new Date(year, monthNumber - 1, 1), 'MMM/yy', { locale: ptBR });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 };
-const MOCK_SERIES_RECEITA = baseSeries(0);
-const MOCK_SERIES_COMISSAO = baseSeries(3);
 
 const formatBRL = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -134,10 +134,10 @@ export default function Home() {
     setError('');
     try {
       const response = await fetch(OVERVIEW_URL, { cache: 'no-store' });
-      const json = (await response.json().catch(() => null)) as OverviewPayload[] | null;
+      const json = (await response.json().catch(() => null)) as OverviewPayload[] | OverviewPayload | null;
       if (!response.ok) throw new Error('Não foi possível carregar as métricas do programa.');
-      if (!Array.isArray(json)) throw new Error('A resposta das métricas está em um formato inválido.');
-      const data = Array.isArray(json) ? json[0] : undefined;
+      if (!json || typeof json !== 'object') throw new Error('A resposta das métricas está em um formato inválido.');
+      const data = Array.isArray(json) ? json[0] : json;
       setOverview(normalizeOverview(data));
     } catch (caught) {
       setOverview(EMPTY_OVERVIEW);
@@ -156,11 +156,12 @@ export default function Home() {
     [preset, customFrom, customTo],
   );
 
-  const filterSeries = (series: typeof MOCK_SERIES_RECEITA) =>
-    series.filter((s) => s.date >= range.from && s.date <= range.to);
-
-  const receitaSeries = filterSeries(MOCK_SERIES_RECEITA);
-  const comissaoSeries = filterSeries(MOCK_SERIES_COMISSAO);
+  const history = overview.history.filter((item) => {
+    const month = item.mes;
+    const fromMonth = format(range.from, 'yyyy-MM');
+    const toMonth = format(range.to, 'yyyy-MM');
+    return month >= fromMonth && month <= toMonth;
+  });
 
   const periodoLabel =
     preset === 'custom' && customFrom && customTo
@@ -180,7 +181,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2" aria-label="Período dos gráficos demonstrativos">
+        <div className="flex items-center gap-2" aria-label="Período dos gráficos">
           <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
             <SelectTrigger className="w-52 bg-secondary/40 border-border/60">
               <SelectValue />
@@ -278,20 +279,22 @@ export default function Home() {
         <Kpi title="Cliques" value={Math.trunc(overview.clicks).toLocaleString('pt-BR')} isLoading={isLoading} />
       </div>
 
-      {/* Gráficos temporariamente demonstrativos; o filtro acima não altera as métricas da API */}
-      <p className="text-xs text-muted-foreground">Gráficos demonstrativos — {periodoLabel.toLowerCase()}</p>
+      {/* O período filtra apenas o histórico mensal; cards e rankings são totais da API. */}
+      <p className="text-xs text-muted-foreground">Histórico mensal — {periodoLabel.toLowerCase()}</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard
           title="Receita de Afiliados"
-          value={formatBRL(receitaSeries.reduce((a, b) => a + b.valor, 0))}
-          data={receitaSeries}
-          format={formatBRL}
+          value={formatBRL(overview.revenue)}
+          data={history}
+          dataKey="receita"
+          isLoading={isLoading}
         />
         <ChartCard
           title="Comissões de Afiliados"
-          value={formatBRL(comissaoSeries.reduce((a, b) => a + b.valor, 0))}
-          data={comissaoSeries}
-          format={formatBRL}
+          value={formatBRL(overview.commission)}
+          data={history}
+          dataKey="comissao"
+          isLoading={isLoading}
         />
       </div>
 
@@ -339,26 +342,29 @@ function ChartCard({
   title,
   value,
   data,
-  format,
+  dataKey,
+  isLoading,
 }: {
   title: string;
   value: string;
-  data: { mes: string; valor: number }[];
-  format: (n: number) => string;
+  data: MonthlyHistory[];
+  dataKey: 'receita' | 'comissao';
+  isLoading: boolean;
 }) {
-  const isEmpty = data.length === 0 || data.every((d) => d.valor === 0);
-  const id = `grad-${title.replace(/\s/g, '')}`;
+  const id = `grad-${dataKey}`;
   return (
     <Card className="bg-card/40 border-border/60">
       <CardContent className="p-7 space-y-6">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-semibold tracking-tight text-foreground mt-2 tabular-nums">
-            {value}
-          </p>
+          {isLoading ? <Skeleton className="mt-2 h-9 w-40" /> : (
+            <p className="text-3xl font-semibold tracking-tight text-foreground mt-2 tabular-nums">{value}</p>
+          )}
         </div>
         <div className="h-[220px] relative">
-          <ResponsiveContainer width="100%" height="100%">
+          {isLoading ? <Skeleton className="h-full w-full" /> : data.length === 0 ? (
+            <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem dados nesse período</p>
+          ) : <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
               <defs>
                 <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -369,6 +375,7 @@ function ChartCard({
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis
                 dataKey="mes"
+                tickFormatter={formatMonth}
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={11}
                 tickLine={false}
@@ -382,12 +389,13 @@ function ChartCard({
                   borderRadius: '0.5rem',
                   fontSize: '12px',
                 }}
-                formatter={(v: number) => [format(v), 'Valor']}
+                formatter={(v: number) => [formatBRL(Number(v)), dataKey === 'receita' ? 'Receita' : 'Comissão']}
+                labelFormatter={(label) => formatMonth(String(label))}
                 labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
               />
               <Area
                 type="monotone"
-                dataKey="valor"
+                dataKey={dataKey}
                 stroke="hsl(var(--primary))"
                 strokeWidth={2}
                 fill={`url(#${id})`}
@@ -395,12 +403,7 @@ function ChartCard({
                 activeDot={{ r: 4 }}
               />
             </AreaChart>
-          </ResponsiveContainer>
-          {isEmpty && (
-            <p className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground/70">
-              Sem dados nesse período
-            </p>
-          )}
+          </ResponsiveContainer>}
         </div>
       </CardContent>
     </Card>
