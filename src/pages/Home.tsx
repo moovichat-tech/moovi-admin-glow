@@ -69,11 +69,11 @@ const normalizeOverview = (payload?: OverviewPayload): OverviewData => {
     clicks: toNumber(payload.total_cliques),
     revenue: toNumber(payload.receita_afiliados),
     commission: toNumber(payload.comissao_afiliados),
-    topCommissions: (payload.top_comissoes ?? []).slice(0, 10).map((item) => ({
+    topCommissions: (Array.isArray(payload.top_comissoes) ? payload.top_comissoes : []).slice(0, 10).map((item) => ({
       nome: item.nome?.trim() || 'Afiliado não informado',
       valor: toNumber(item.total_comissao),
     })),
-    topSales: (payload.top_vendas ?? []).slice(0, 10).map((item) => ({
+    topSales: (Array.isArray(payload.top_vendas) ? payload.top_vendas : []).slice(0, 10).map((item) => ({
       nome: item.nome?.trim() || 'Afiliado não informado',
       valor: Math.trunc(toNumber(item.total_vendas)),
     })),
@@ -136,7 +136,7 @@ export default function Home() {
       const response = await fetch(OVERVIEW_URL, { cache: 'no-store' });
       const json = (await response.json().catch(() => null)) as OverviewPayload[] | null;
       if (!response.ok) throw new Error('Não foi possível carregar as métricas do programa.');
-      if (json !== null && !Array.isArray(json)) throw new Error('A resposta das métricas está em um formato inválido.');
+      if (!Array.isArray(json)) throw new Error('A resposta das métricas está em um formato inválido.');
       const data = Array.isArray(json) ? json[0] : undefined;
       setOverview(normalizeOverview(data));
     } catch (caught) {
@@ -176,11 +176,11 @@ export default function Home() {
             Visão Geral do Programa
           </h1>
           <p className="text-base text-muted-foreground mt-2">
-            Métricas consolidadas — {periodoLabel.toLowerCase()}
+            Métricas consolidadas do programa
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" aria-label="Período dos gráficos demonstrativos">
           <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
             <SelectTrigger className="w-52 bg-secondary/40 border-border/60">
               <SelectValue />
@@ -278,7 +278,8 @@ export default function Home() {
         <Kpi title="Cliques" value={Math.trunc(overview.clicks).toLocaleString('pt-BR')} isLoading={isLoading} />
       </div>
 
-      {/* Gráficos */}
+      {/* Gráficos temporariamente demonstrativos; o filtro acima não altera as métricas da API */}
+      <p className="text-xs text-muted-foreground">Gráficos demonstrativos — {periodoLabel.toLowerCase()}</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard
           title="Receita de Afiliados"
@@ -298,7 +299,7 @@ export default function Home() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <RankingCard
           title="Top 10 Afiliados por Comissão"
-          subtitle="Maior comissão acumulada no período"
+          subtitle="Maior comissão acumulada"
           rows={overview.topCommissions}
           formatValue={formatBRL}
           isLoading={isLoading}
