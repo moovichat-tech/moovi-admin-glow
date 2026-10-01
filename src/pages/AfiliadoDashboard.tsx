@@ -83,7 +83,7 @@ const formatDate = (value: string | null) => {
 
 const normalizeData = (response: DashboardResponse | null): DashboardData => {
   const unwrapped = response && !Array.isArray(response) && 'data' in response ? response.data ?? response : response;
-  const payload: DashboardPayload = (Array.isArray(unwrapped) ? unwrapped[0] : unwrapped) ?? {};
+  const payload: DashboardPayload = (Array.isArray(unwrapped) ? unwrapped[0] : unwrapped) as DashboardPayload ?? {};
   const basic = toNumber(payload.cliques_basico);
   const pro = toNumber(payload.cliques_pro);
   const premium = toNumber(payload.cliques_premium);
