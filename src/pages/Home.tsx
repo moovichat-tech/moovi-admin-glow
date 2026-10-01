@@ -399,7 +399,7 @@ function ChartCard({
                 stroke="hsl(var(--primary))"
                 strokeWidth={2}
                 fill={`url(#${id})`}
-                dot={false}
+                dot={data.length === 1 ? { r: 4 } : false}
                 activeDot={{ r: 4 }}
               />
             </AreaChart>
