@@ -1,2 +1,2 @@
 - Links personalizados do portal carregam o ID na URL e priorizam esse ID sobre o armazenamento local; isso evita exibir dados do afiliado anterior ao abrir outro link.
-- A Visão Geral do Programa usa o webhook visao-geral-programa para cards e rankings; os gráficos seguem demonstrativos até existir histórico.
+- A Visão Geral do Programa usa o webhook visao-geral-programa para cards, rankings e histórico mensal; o período filtra só os gráficos porque a API retorna métricas consolidadas sem filtro.
